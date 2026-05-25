@@ -458,14 +458,6 @@
           </div>
         </div>
       </div>
-    </ContentTemplate>
-    <Triggers>
-      <asp:AsyncPostBackTrigger ControlID="txtBuscar" EventName="TextChanged" />
-      <asp:AsyncPostBackTrigger ControlID="ddlFiltroEstado" EventName="SelectedIndexChanged" />
-      <asp:AsyncPostBackTrigger ControlID="btnLimpiarFiltros" EventName="Click" />
-      <asp:AsyncPostBackTrigger ControlID="btnGuardar" EventName="Click" />
-    </Triggers>
-  </asp:UpdatePanel>
 
   <div class="modal-overlay" id="modalProveedor">
     <div class="modal-box">
@@ -503,6 +495,14 @@
 
   <asp:HiddenField ID="hfModalAbierto" runat="server" Value="0"/>
   <asp:HiddenField ID="hfFiltrosAbiertos" runat="server" Value="0"/>
+    </ContentTemplate>
+    <Triggers>
+      <asp:AsyncPostBackTrigger ControlID="txtBuscar" EventName="TextChanged" />
+      <asp:AsyncPostBackTrigger ControlID="ddlFiltroEstado" EventName="SelectedIndexChanged" />
+      <asp:AsyncPostBackTrigger ControlID="btnLimpiarFiltros" EventName="Click" />
+      <asp:AsyncPostBackTrigger ControlID="btnGuardar" EventName="Click" />
+    </Triggers>
+  </asp:UpdatePanel>
 
   <script>
   function abrirModal() {

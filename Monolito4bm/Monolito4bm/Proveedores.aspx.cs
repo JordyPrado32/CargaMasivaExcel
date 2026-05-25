@@ -2,7 +2,6 @@ using Capa_Datos;
 using Capa_Negocios;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Web;
 using System.Web.UI;
@@ -222,6 +221,7 @@ namespace Monolito4bm
                         txtNombre.Text = prov.prov_nombre;
                         litTituloForm.Text = "Editar Proveedor";
                         hfModalAbierto.Value = "1";
+                        ScriptManager.RegisterStartupScript(this, GetType(), "openEditProveedor", "abrirModal();", true);
                     }
                     break;
 
@@ -326,7 +326,7 @@ namespace Monolito4bm
         {
             hfProvId.Value = "0";
             txtNombre.Text = string.Empty;
-            litTituloForm.Text = "➕ Nuevo Proveedor";
+            litTituloForm.Text = "Nuevo Proveedor";
         }
 
         private void MostrarMensaje(string texto, bool exito)
