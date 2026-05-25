@@ -120,6 +120,48 @@
 }
 .alert-success { background:rgba(39,174,96,.14); color:#1e8449; border:1px solid rgba(39,174,96,.28); }
 .alert-danger  { background:rgba(192,57,43,.11); color:#c0392b; border:1px solid rgba(192,57,43,.24); }
+.alert-warning { background:rgba(230,126,34,.12); color:#9a5b00; border:1px solid rgba(230,126,34,.28); }
+
+.bulk-upload-layout {
+  display:grid; grid-template-columns:minmax(0, 1.4fr) minmax(280px, .9fr);
+  gap:18px; align-items:start;
+}
+.bulk-upload-box {
+  position:relative; border:2px dashed rgba(122,74,170,0.32); border-radius:18px;
+  padding:22px 20px; background:linear-gradient(135deg, rgba(122,74,170,0.05), rgba(255,255,255,0.92));
+  min-height:180px;
+}
+.bulk-upload-box:hover { border-color:var(--accent); }
+.bulk-upload-box input[type=file] {
+  position:absolute; inset:0; opacity:0; cursor:pointer;
+}
+.bulk-upload-copy {
+  display:flex; flex-direction:column; gap:8px; max-width:460px;
+}
+.bulk-upload-copy strong { color:var(--accent2); font-size:1.02rem; }
+.bulk-upload-copy p { margin:0; color:#5f4a7f; font-size:.88rem; line-height:1.5; }
+.bulk-file-pill {
+  display:inline-flex; align-items:center; gap:8px; width:fit-content;
+  max-width:100%; padding:8px 14px; border-radius:999px; font-size:.82rem; font-weight:700;
+  background:rgba(122,74,170,0.12); color:var(--accent2); border:1px solid rgba(122,74,170,0.18);
+}
+.bulk-meta {
+  display:grid; gap:12px;
+}
+.bulk-note {
+  border-radius:14px; padding:14px 16px; font-size:.83rem; line-height:1.5;
+  border:1px solid rgba(122,74,170,0.16); background:rgba(122,74,170,0.04); color:#4c356d;
+}
+.bulk-note strong { color:var(--accent2); }
+.bulk-actions {
+  display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;
+}
+.bulk-warning {
+  border-left:4px solid var(--warn); background:rgba(230,126,34,0.1);
+}
+.bulk-columns {
+  margin:0; padding-left:18px; color:#4c356d; font-size:.82rem; line-height:1.55;
+}
 
 /* ── GridView ───────────────────────────────────────────────── */
 .grid-wrapper { overflow-x:auto; border-radius:14px; }
@@ -219,6 +261,9 @@
   .modal-box { padding:20px 16px; }
   .modal-row { flex-direction:column; }
   .range-group { flex-direction:column; }
+  .bulk-upload-layout { grid-template-columns:1fr; }
+  .bulk-actions { flex-direction:column; }
+  .bulk-actions .btn { justify-content:center; width:100%; }
 }
 </style>
 </asp:Content>
@@ -237,6 +282,59 @@
 
   <!-- ══ Mensajes ══════════════════════════════════════════════ -->
   <asp:Literal ID="litMensaje" runat="server"/>
+
+  <div class="card">
+    <div class="card-title">
+      <i class="fa-solid fa-file-arrow-up"></i> Carga masiva de productos
+    </div>
+
+    <asp:HiddenField ID="hfModoCarga" runat="server" Value="" />
+
+    <div class="bulk-upload-layout">
+      <div>
+        <label class="bulk-upload-box" for="<%= fuCargaProductos.ClientID %>">
+          <asp:FileUpload ID="fuCargaProductos" runat="server"
+                          accept=".csv,.xlsx,.xls"
+                          onchange="validarArchivoCarga(this);" />
+          <div class="bulk-upload-copy">
+            <strong>Selecciona un archivo Excel o CSV</strong>
+            <p>Formatos permitidos: <code>.csv</code>, <code>.xlsx</code> y <code>.xls</code>. La validación del formato se ejecuta antes de cualquier envío al servidor.</p>
+            <span class="bulk-file-pill" id="bulkFileName">
+              <i class="fa-solid fa-file-circle-plus"></i> Ningún archivo seleccionado
+            </span>
+          </div>
+        </label>
+
+        <div class="bulk-actions">
+          <asp:Button ID="btnCargaIncremental" runat="server" CssClass="btn btn-success"
+                      Text="Carga incremental"
+                      OnClientClick="return prepararCarga('append', false);"
+                      OnClick="btnCargaMasiva_Click" />
+          <asp:Button ID="btnCargaTotal" runat="server" CssClass="btn btn-danger"
+                      Text="Sobrescribir todo"
+                      OnClientClick="return prepararCarga('overwrite', true);"
+                      OnClick="btnCargaMasiva_Click" />
+        </div>
+      </div>
+
+      <div class="bulk-meta">
+        <div class="bulk-note">
+          <strong>Columnas esperadas</strong>
+          <ol class="bulk-columns">
+            <li><code>NombreProducto</code> o <code>Producto</code></li>
+            <li><code>Proveedor</code></li>
+            <li><code>Cantidad</code> o <code>Stock</code></li>
+            <li><code>Precio</code></li>
+            <li><code>ImagenReferencia</code> o <code>FotoRuta</code> (opcional)</li>
+          </ol>
+        </div>
+        <div class="bulk-note bulk-warning">
+          <strong>Sobrescritura total</strong>
+          <div>Este flujo limpia primero <code>FotosProducto</code>, reinicia <code>Producto</code>, reindexa identidad y vuelve a insertar productos y referencias de imagen dentro de una única transacción.</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ══ Buscador + Filtros ════════════════════════════════════ -->
   <div class="card">
@@ -580,6 +678,59 @@
               dots.forEach(function (d, i) { d.addEventListener('click', function () { goTo(i); }); });
           });
       });
+
+      function validarArchivoCarga(input) {
+          var pill = document.getElementById('bulkFileName');
+          var file = input && input.files && input.files.length ? input.files[0] : null;
+          if (!file) {
+              pill.innerHTML = '<i class="fa-solid fa-file-circle-plus"></i> Ningún archivo seleccionado';
+              return false;
+          }
+
+          var nombre = file.name || '';
+          var extension = nombre.indexOf('.') >= 0 ? nombre.substring(nombre.lastIndexOf('.')).toLowerCase() : '';
+          var permitidas = ['.csv', '.xlsx', '.xls'];
+
+          if (permitidas.indexOf(extension) === -1) {
+              input.value = '';
+              pill.innerHTML = '<i class="fa-solid fa-file-circle-plus"></i> Ningún archivo seleccionado';
+              Swal.fire({
+                  title: 'Formato no permitido',
+                  text: 'Solo se aceptan archivos .csv, .xlsx o .xls para la carga masiva.',
+                  icon: 'warning',
+                  confirmButtonColor: '#7a4aaa'
+              });
+              return false;
+          }
+
+          pill.innerHTML = '<i class="fa-solid fa-file-lines"></i> ' + nombre;
+          return true;
+      }
+
+      function prepararCarga(modo, confirmarSobrescritura) {
+          var input = document.getElementById('<%= fuCargaProductos.ClientID %>');
+          document.getElementById('<%= hfModoCarga.ClientID %>').value = modo;
+
+          if (!input || !input.files || !input.files.length) {
+              Swal.fire({
+                  title: 'Archivo requerido',
+                  text: 'Selecciona un archivo válido antes de iniciar la carga masiva.',
+                  icon: 'warning',
+                  confirmButtonColor: '#7a4aaa'
+              });
+              return false;
+          }
+
+          if (!validarArchivoCarga(input)) {
+              return false;
+          }
+
+          if (!confirmarSobrescritura) {
+              return true;
+          }
+
+          return confirm('Esta acción eliminará productos y fotos actuales antes de reinsertar la nueva carga. ¿Deseas continuar?');
+      }
   </script>
 
 </asp:Content>
