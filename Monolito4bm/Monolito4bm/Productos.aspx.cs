@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Linq;
 using System.Data.OleDb;
+using System.Data.SqlClient;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
@@ -47,12 +48,18 @@ namespace Monolito4bm
         protected global::System.Web.UI.WebControls.TextBox txtCantidad;
         protected global::System.Web.UI.WebControls.TextBox txtPrecio;
         protected global::System.Web.UI.WebControls.DropDownList ddlProveedor;
+        protected global::System.Web.UI.WebControls.Literal litFotosModalInfo;
+        protected global::System.Web.UI.WebControls.FileUpload fuFotosProducto;
         protected global::System.Web.UI.WebControls.HiddenField hfModalAbierto;
         protected global::System.Web.UI.WebControls.HiddenField hfFiltrosAbiertos;
 
         private const int POR_PAGINA = 5;
+        private const int MAX_FOTOS_POR_PRODUCTO = 4;
+        private const int MAX_BYTES_FOTO = 2 * 1024 * 1024;
+        private const string CARPETA_FOTOS_PRODUCTO = "Uploads/Productos";
         private static readonly string[] ExtensionesPermitidas = { ".csv", ".xlsx", ".xls" };
         private static readonly char[] SeparadoresFotos = { '|', ';', '\n', '\r' };
+        private static readonly string[] ExtensionesFotoPermitidas = { ".jpg", ".jpeg", ".png" };
 
         protected void Page_Load(object sender, EventArgs e)
         {
@@ -169,7 +176,7 @@ namespace Monolito4bm
             switch (e.CommandName)
             {
                 case "Editar":
-                    var prod = CN_tbl_producto.BuscarPorId(id);
+                    var prod = ObtenerProductoParaEdicion(id);
                     if (prod != null)
                     {
                         hfProdId.Value = prod.pro_id.ToString();
@@ -179,6 +186,7 @@ namespace Monolito4bm
                             ? prod.pro_precio.Value.ToString("0.00")
                             : "0.00";
                         ddlProveedor.SelectedValue = prod.prov_id.ToString();
+                        litFotosModalInfo.Text = ConstruirResumenFotosModal(prod.pro_id);
                         litTituloModal.Text = "Editar Producto";
                         hfModalAbierto.Value = "1";
                     }
@@ -210,8 +218,8 @@ namespace Monolito4bm
                 case "ElimFis":
                     try
                     {
-                        CN_tbl_producto.EliminarFisico(id);
-                        MostrarMensaje("Producto eliminado permanentemente.", true);
+                        string mensaje = EliminarProductoConRelaciones(id);
+                        MostrarMensaje(mensaje, true);
                         CargarGrid();
                     }
                     catch (Exception ex)
@@ -227,37 +235,18 @@ namespace Monolito4bm
             int id = int.Parse(hfProdId.Value);
             string nombre = txtNombre.Text.Trim();
 
-            if (CN_tbl_producto.ExisteNombre(nombre, id))
-            {
-                MostrarMensaje("Ya existe un producto activo con ese nombre.", false);
-                hfModalAbierto.Value = "1";
-                return;
-            }
-
             try
             {
                 string precioLimpio = txtPrecio.Text.Replace(",", ".");
                 decimal precioFinal = decimal.Parse(precioLimpio, CultureInfo.InvariantCulture);
+                string mensaje = GuardarProductoConRelaciones(
+                    id,
+                    nombre,
+                    int.Parse(txtCantidad.Text),
+                    precioFinal,
+                    int.Parse(ddlProveedor.SelectedValue));
 
-                var p = new tbl_producto
-                {
-                    pro_id = id,
-                    pro_nombre = nombre,
-                    pro_cantidad = int.Parse(txtCantidad.Text),
-                    pro_precio = precioFinal,
-                    prov_id = int.Parse(ddlProveedor.SelectedValue)
-                };
-
-                if (id == 0)
-                {
-                    CN_tbl_producto.Guardar(p);
-                }
-                else
-                {
-                    CN_tbl_producto.Modificar(p);
-                }
-
-                MostrarMensaje(id == 0 ? "Producto creado correctamente." : "Producto actualizado.", true);
+                MostrarMensaje(mensaje, true);
                 hfModalAbierto.Value = "0";
                 LimpiarFormulario();
                 CargarGrid();
@@ -266,6 +255,251 @@ namespace Monolito4bm
             {
                 MostrarMensaje("Error: " + ex.Message, false);
                 hfModalAbierto.Value = "1";
+            }
+        }
+
+        private tbl_producto ObtenerProductoParaEdicion(int productoId)
+        {
+            using (var dc = new MonolitoDataContext())
+            {
+                return dc.tbl_producto.FirstOrDefault(p => p.pro_id == productoId);
+            }
+        }
+
+        private string GuardarProductoConRelaciones(int productoId, string nombre, int cantidad, decimal precio, int proveedorId)
+        {
+            var archivosGuardados = new List<string>();
+            int fotosRegistradas = 0;
+
+            using (var dc = new MonolitoDataContext())
+            {
+                dc.Connection.Open();
+                using (var transaction = dc.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
+                {
+                    dc.Transaction = transaction;
+                    try
+                    {
+                        string nombreNormalizado = (nombre ?? string.Empty).Trim();
+                        if (dc.tbl_producto.Any(p => p.pro_id != productoId &&
+                                                     p.pro_estado == 'A' &&
+                                                     p.pro_nombre == nombreNormalizado))
+                        {
+                            throw new InvalidOperationException("Ya existe un producto activo con ese nombre.");
+                        }
+
+                        var proveedor = dc.tbl_proveedor
+                            .FirstOrDefault(p => p.prov_id == proveedorId && p.prov_estado == 'A');
+                        if (proveedor == null)
+                        {
+                            throw new InvalidOperationException("Selecciona un proveedor activo y vÃ¡lido.");
+                        }
+
+                        tbl_producto producto;
+                        if (productoId == 0)
+                        {
+                            producto = new tbl_producto
+                            {
+                                pro_nombre = nombreNormalizado,
+                                pro_cantidad = cantidad,
+                                pro_precio = precio,
+                                pro_estado = 'A',
+                                prov_id = proveedor.prov_id
+                            };
+
+                            dc.tbl_producto.InsertOnSubmit(producto);
+                            dc.SubmitChanges();
+                        }
+                        else
+                        {
+                            producto = dc.tbl_producto.FirstOrDefault(p => p.pro_id == productoId)
+                                ?? throw new InvalidOperationException("Producto no encontrado.");
+
+                            producto.pro_nombre = nombreNormalizado;
+                            producto.pro_cantidad = cantidad;
+                            producto.pro_precio = precio;
+                            producto.prov_id = proveedor.prov_id;
+                            dc.SubmitChanges();
+                        }
+
+                        var nuevasFotos = RegistrarFotosDesdeModal(dc, producto.pro_id, archivosGuardados);
+                        if (nuevasFotos.Any())
+                        {
+                            dc.tbl_pro_fotos.InsertAllOnSubmit(nuevasFotos);
+                            dc.SubmitChanges();
+                            fotosRegistradas = nuevasFotos.Count;
+                        }
+
+                        transaction.Commit();
+
+                        string accion = productoId == 0 ? "Producto creado correctamente." : "Producto actualizado.";
+                        if (fotosRegistradas > 0)
+                        {
+                            accion += $" Fotos registradas: {fotosRegistradas}.";
+                        }
+
+                        return accion;
+                    }
+                    catch
+                    {
+                        transaction.Rollback();
+                        EliminarArchivosFisicos(archivosGuardados);
+                        throw;
+                    }
+                    finally
+                    {
+                        dc.Connection.Close();
+                    }
+                }
+            }
+        }
+
+        private List<tbl_pro_fotos> RegistrarFotosDesdeModal(MonolitoDataContext dc, int productoId, List<string> archivosGuardados)
+        {
+            if (fuFotosProducto == null || !fuFotosProducto.HasFiles)
+            {
+                return new List<tbl_pro_fotos>();
+            }
+
+            var archivos = fuFotosProducto.PostedFiles
+                .Cast<System.Web.HttpPostedFile>()
+                .Where(f => f != null && f.ContentLength > 0)
+                .ToList();
+
+            if (!archivos.Any())
+            {
+                return new List<tbl_pro_fotos>();
+            }
+
+            int fotosActuales = dc.tbl_pro_fotos.Count(f => f.pro_id == productoId);
+            if (fotosActuales + archivos.Count > MAX_FOTOS_POR_PRODUCTO)
+            {
+                throw new InvalidOperationException($"Este producto solo admite {MAX_FOTOS_POR_PRODUCTO} fotos en total.");
+            }
+
+            string carpetaFisica = Server.MapPath("~/" + CARPETA_FOTOS_PRODUCTO);
+            if (!Directory.Exists(carpetaFisica))
+            {
+                Directory.CreateDirectory(carpetaFisica);
+            }
+
+            var nuevasFotos = new List<tbl_pro_fotos>();
+            foreach (var archivo in archivos)
+            {
+                if (archivo.ContentLength > MAX_BYTES_FOTO)
+                {
+                    throw new InvalidOperationException($"La foto \"{Path.GetFileName(archivo.FileName)}\" supera los 2 MB permitidos.");
+                }
+
+                string extension = Path.GetExtension(archivo.FileName ?? string.Empty).ToLowerInvariant();
+                if (!ExtensionesFotoPermitidas.Contains(extension))
+                {
+                    throw new InvalidOperationException($"La foto \"{Path.GetFileName(archivo.FileName)}\" no tiene una extensiÃ³n permitida.");
+                }
+
+                string contentType = (archivo.ContentType ?? string.Empty).ToLowerInvariant();
+                if (contentType != "image/jpeg" && contentType != "image/png")
+                {
+                    throw new InvalidOperationException($"La foto \"{Path.GetFileName(archivo.FileName)}\" debe ser JPG o PNG.");
+                }
+
+                string nombreArchivo = $"prod_{productoId}_{Guid.NewGuid():N}{(extension == ".jpeg" ? ".jpg" : extension)}";
+                string rutaFisica = Path.Combine(carpetaFisica, nombreArchivo);
+                archivo.SaveAs(rutaFisica);
+                archivosGuardados.Add(rutaFisica);
+
+                nuevasFotos.Add(new tbl_pro_fotos
+                {
+                    pro_id = productoId,
+                    foto_ruta = $"{CARPETA_FOTOS_PRODUCTO}/{nombreArchivo}",
+                    foto_estado = 'A',
+                    fecha_subida = DateTime.Now
+                });
+            }
+
+            return nuevasFotos;
+        }
+
+        private string EliminarProductoConRelaciones(int productoId)
+        {
+            var rutasFoto = new List<string>();
+            using (var dc = new MonolitoDataContext())
+            {
+                dc.Connection.Open();
+                using (var transaction = dc.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
+                {
+                    dc.Transaction = transaction;
+                    try
+                    {
+                        var producto = dc.tbl_producto.FirstOrDefault(p => p.pro_id == productoId)
+                            ?? throw new InvalidOperationException("Producto no encontrado.");
+
+                        var fotos = dc.tbl_pro_fotos.Where(f => f.pro_id == productoId).ToList();
+                        rutasFoto.AddRange(fotos
+                            .Select(f => f.foto_ruta)
+                            .Where(r => !string.IsNullOrWhiteSpace(r))
+                            .Distinct(StringComparer.OrdinalIgnoreCase));
+
+                        if (fotos.Any())
+                        {
+                            dc.tbl_pro_fotos.DeleteAllOnSubmit(fotos);
+                            dc.SubmitChanges();
+                        }
+
+                        dc.tbl_producto.DeleteOnSubmit(producto);
+                        dc.SubmitChanges();
+                        transaction.Commit();
+                    }
+                    catch (SqlException ex) when (ex.Number == 547)
+                    {
+                        transaction.Rollback();
+                        throw new InvalidOperationException("No se pudo eliminar el producto porque todavÃ­a tiene relaciones pendientes.");
+                    }
+                    catch
+                    {
+                        transaction.Rollback();
+                        throw;
+                    }
+                    finally
+                    {
+                        dc.Connection.Close();
+                    }
+                }
+            }
+
+            EliminarArchivosFisicos(rutasFoto.Select(ResolverRutaFisicaDesdeBase));
+            return "Producto eliminado permanentemente con sus fotos asociadas.";
+        }
+
+        private string ConstruirResumenFotosModal(int productoId)
+        {
+            using (var dc = new MonolitoDataContext())
+            {
+                int total = dc.tbl_pro_fotos.Count(f => f.pro_id == productoId);
+                int disponibles = Math.Max(0, MAX_FOTOS_POR_PRODUCTO - total);
+                return $"Actualmente hay {total} foto(s) registradas. Puedes agregar hasta {disponibles} mÃ¡s en este guardado o seguir administrÃ¡ndolas desde la galerÃ­a del producto.";
+            }
+        }
+
+        private string ResolverRutaFisicaDesdeBase(string rutaRelativa)
+        {
+            if (string.IsNullOrWhiteSpace(rutaRelativa))
+            {
+                return string.Empty;
+            }
+
+            return Server.MapPath("~/" + rutaRelativa.TrimStart('~', '/').Replace("\\", "/"));
+        }
+
+        private void EliminarArchivosFisicos(IEnumerable<string> rutasFisicas)
+        {
+            foreach (string ruta in (rutasFisicas ?? Enumerable.Empty<string>())
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (File.Exists(ruta))
+                {
+                    File.Delete(ruta);
+                }
             }
         }
 
@@ -1054,6 +1288,7 @@ namespace Monolito4bm
             txtCantidad.Text = "";
             txtPrecio.Text = "";
             ddlProveedor.SelectedIndex = 0;
+            litFotosModalInfo.Text = "Puedes adjuntar hasta 4 fotos JPG o PNG. Se registrar&aacute;n en FotosProducto al guardar el producto.";
             litTituloModal.Text = "Nuevo Producto";
         }
 

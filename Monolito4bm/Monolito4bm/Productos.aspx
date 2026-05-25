@@ -255,6 +255,32 @@
 .modal-title   { font-size:1.08rem; font-weight:700; color:var(--accent2); margin-bottom:18px; }
 .modal-row     { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
 .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:6px; }
+.inline-note {
+  border-radius:14px; padding:13px 15px;
+  border:1px solid rgba(122,74,170,0.16); background:rgba(122,74,170,0.04);
+  color:#4c356d; font-size:.81rem; line-height:1.5;
+}
+.inline-note strong { color:var(--accent2); }
+.mini-upload-box {
+  position:relative; border:2px dashed rgba(122,74,170,0.28); border-radius:16px;
+  padding:16px; background:linear-gradient(135deg, rgba(122,74,170,0.05), rgba(255,255,255,0.95));
+}
+.mini-upload-box input[type=file] {
+  position:absolute; inset:0; opacity:0; cursor:pointer;
+}
+.mini-upload-copy {
+  display:flex; flex-direction:column; gap:6px; color:#5f4a7f; font-size:.82rem;
+}
+.mini-upload-copy strong { color:var(--accent2); font-size:.95rem; }
+.mini-preview {
+  display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;
+}
+.mini-preview-thumb {
+  width:58px; height:58px; border-radius:10px; overflow:hidden;
+  border:1.5px solid rgba(122,74,170,0.25); background:rgba(122,74,170,0.08);
+}
+.mini-preview-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.mini-preview-count { font-size:.76rem; color:#7a6a95; margin-top:8px; }
 
 @media(max-width:600px){
   .card { padding:14px 12px; }
@@ -606,6 +632,28 @@
         </div>
       </div>
 
+      <div class="modal-row">
+        <div class="fg" style="min-width:100%">
+          <label>Fotos del producto</label>
+          <div class="inline-note">
+            <strong>Registro relacional</strong>
+            <div><asp:Literal ID="litFotosModalInfo" runat="server" Text="Puedes adjuntar hasta 4 fotos JPG o PNG. Se registrar&aacute;n en FotosProducto al guardar el producto."/></div>
+          </div>
+          <label class="mini-upload-box" for="<%= fuFotosProducto.ClientID %>">
+            <asp:FileUpload ID="fuFotosProducto" runat="server"
+                            AllowMultiple="true"
+                            accept="image/jpeg,image/png"
+                            onchange="previewFotosProducto(this);" />
+            <div class="mini-upload-copy">
+              <strong>Selecciona fotos para registrar</strong>
+              <span>Hasta 4 archivos por producto. Formatos permitidos: JPG y PNG, m&aacute;ximo 2 MB por archivo.</span>
+            </div>
+          </label>
+          <div class="mini-preview" id="previewFotosProducto"></div>
+          <div class="mini-preview-count" id="previewFotosProductoCount"></div>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="cerrarModal(); return false;">
           <i class="fa-solid fa-xmark"></i> Cancelar
@@ -730,6 +778,43 @@
           }
 
           return confirm('Esta acción eliminará productos y fotos actuales antes de reinsertar la nueva carga. ¿Deseas continuar?');
+      }
+      function previewFotosProducto(input) {
+          var strip = document.getElementById('previewFotosProducto');
+          var count = document.getElementById('previewFotosProductoCount');
+          strip.innerHTML = '';
+          count.textContent = '';
+
+          var files = input && input.files ? Array.from(input.files).slice(0, 4) : [];
+          if (!files.length) {
+              return;
+          }
+
+          var maxBytes = 2 * 1024 * 1024;
+          for (var i = 0; i < files.length; i++) {
+              if (files[i].size > maxBytes) {
+                  input.value = '';
+                  Swal.fire({
+                      title: 'Archivo muy pesado',
+                      text: 'Cada foto debe pesar como mÃ¡ximo 2 MB.',
+                      icon: 'warning',
+                      confirmButtonColor: '#7a4aaa'
+                  });
+                  return;
+              }
+          }
+
+          count.textContent = files.length + ' foto(s) preparada(s) para registrar';
+          files.forEach(function (file) {
+              var reader = new FileReader();
+              reader.onload = function (e) {
+                  var div = document.createElement('div');
+                  div.className = 'mini-preview-thumb';
+                  div.innerHTML = "<img src='" + e.target.result + "' alt='preview'/>";
+                  strip.appendChild(div);
+              };
+              reader.readAsDataURL(file);
+          });
       }
   </script>
 
