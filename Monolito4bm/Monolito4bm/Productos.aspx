@@ -230,9 +230,10 @@
     <div class="page-title">
       <i class="fa-solid fa-box" style="color:var(--accent)"></i> Productos
     </div>
-    <button class="btn btn-primary" onclick="abrirModal(); return false;">
+    <asp:LinkButton ID="btnNuevo" runat="server" CssClass="btn btn-primary"
+                    OnClick="btnNuevo_Click" CausesValidation="false">
       <i class="fa-solid fa-plus"></i> Nuevo Producto
-    </button>
+    </asp:LinkButton>
   </div>
 
   <!-- ══ Mensajes ══════════════════════════════════════════════ -->
@@ -464,7 +465,7 @@
         <div class="fg" style="min-width:100%">
           <label>Nombre del producto *</label>
           <asp:TextBox ID="txtNombre" runat="server" CssClass="form-control"
-                       placeholder="Ej. Laptop Dell Inspiron" MaxLength="200"/>
+                       placeholder="Ej. Laptop Dell Inspiron" MaxLength="50"/>
           <asp:RequiredFieldValidator runat="server" ControlToValidate="txtNombre"
                ErrorMessage="El nombre es obligatorio." ForeColor="#c0392b"
                Display="Dynamic" ValidationGroup="vgProd" Style="font-size:.75rem;margin-top:3px"/>
@@ -523,6 +524,19 @@
 
   <asp:HiddenField ID="hfModalAbierto"    runat="server" Value="0"/>
   <asp:HiddenField ID="hfFiltrosAbiertos" runat="server" Value="0"/>
+    </ContentTemplate>
+       <Triggers>
+        <asp:AsyncPostBackTrigger ControlID="txtBuscar" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="ddlFiltroProveedor" EventName="SelectedIndexChanged" />
+        <asp:AsyncPostBackTrigger ControlID="ddlFiltroEstado" EventName="SelectedIndexChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtPrecioMin" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtPrecioMax" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtStockMin" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtStockMax" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="btnLimpiarFiltros" EventName="Click" />
+        <asp:AsyncPostBackTrigger ControlID="btnNuevo" EventName="Click" />
+    </Triggers>
+    </asp:UpdatePanel>
 
   <script>
   // ── Modal ────────────────────────────────────────────────────

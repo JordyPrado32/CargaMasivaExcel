@@ -20,6 +20,7 @@ namespace Monolito4bm
         protected global::System.Web.UI.WebControls.TextBox txtStockMax;
         protected global::System.Web.UI.WebControls.LinkButton btnLimpiarFiltros;
         protected global::System.Web.UI.WebControls.LinkButton btnGuardarProd;
+        protected global::System.Web.UI.WebControls.LinkButton btnNuevo;
         protected global::System.Web.UI.WebControls.Literal litTotal;
         protected global::System.Web.UI.WebControls.HiddenField hfPagina;
         protected global::System.Web.UI.WebControls.HiddenField hfTotalPags;
@@ -135,6 +136,13 @@ namespace Monolito4bm
             { hfPagina.Value = e.CommandArgument.ToString(); CargarGrid(); }
         }
 
+        protected void btnNuevo_Click(object sender, EventArgs e)
+        {
+            LimpiarFormulario();
+            hfModalAbierto.Value = "1";
+            ScriptManager.RegisterStartupScript(this, GetType(), "openNewProducto", "abrirModal();", true);
+        }
+
         // ── Comandos de fila ──────────────────────────────────────────
         protected void gvProductos_RowCommand(object sender, GridViewCommandEventArgs e)
         {
@@ -151,7 +159,24 @@ namespace Monolito4bm
                         txtCantidad.Text = prod.pro_cantidad.ToString();
                         txtPrecio.Text = prod.pro_precio.HasValue
                                               ? prod.pro_precio.Value.ToString("0.00") : "0.00";
-                        ddlProveedor.SelectedValue = prod.prov_id.ToString();
+                        
+                        if (prod.prov_id.HasValue)
+                        {
+                            var item = ddlProveedor.Items.FindByValue(prod.prov_id.Value.ToString());
+                            if (item != null)
+                            {
+                                ddlProveedor.SelectedValue = prod.prov_id.Value.ToString();
+                            }
+                            else
+                            {
+                                ddlProveedor.SelectedValue = "";
+                            }
+                        }
+                        else
+                        {
+                            ddlProveedor.SelectedValue = "";
+                        }
+
                         litTituloModal.Text = "Editar Producto";
                         hfModalAbierto.Value = "1";
                     }
@@ -179,13 +204,15 @@ namespace Monolito4bm
         // ── Guardar / Actualizar ──────────────────────────────────────
         protected void btnGuardar_Click(object sender, EventArgs e)
         {
-            int id = int.Parse(hfProdId.Value);
+            int id = 0;
+            int.TryParse(hfProdId.Value, out id);
             string nombre = txtNombre.Text.Trim();
 
             if (CN_tbl_producto.ExisteNombre(nombre, id))
             {
                 MostrarMensaje("Ya existe un producto activo con ese nombre.", false);
                 hfModalAbierto.Value = "1";
+                ScriptManager.RegisterStartupScript(this, GetType(), "openModalExNombre", "abrirModal();", true);
                 return;
             }
 
@@ -194,13 +221,17 @@ namespace Monolito4bm
                 // TRUCO: Reemplazamos la coma por punto y forzamos la cultura invariante
                 // Así nos aseguramos de que C# siempre lo entienda como decimal correcto.
                 string precioLimpio = txtPrecio.Text.Replace(",", ".");
-                decimal precioFinal = decimal.Parse(precioLimpio, System.Globalization.CultureInfo.InvariantCulture);
+                decimal precioFinal = 0;
+                decimal.TryParse(precioLimpio, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out precioFinal);
+
+                int cantidad = 0;
+                int.TryParse(txtCantidad.Text, out cantidad);
 
                 var p = new tbl_producto
                 {
                     pro_id = id,
                     pro_nombre = nombre,
-                    pro_cantidad = int.Parse(txtCantidad.Text),
+                    pro_cantidad = cantidad,
                     pro_precio = precioFinal, // <-- Asignamos el valor limpio aquí
                     prov_id = int.Parse(ddlProveedor.SelectedValue)
                 };
@@ -213,7 +244,12 @@ namespace Monolito4bm
                 LimpiarFormulario();
                 CargarGrid();
             }
-            catch (Exception ex) { MostrarMensaje("Error: " + ex.Message, false); hfModalAbierto.Value = "1"; }
+            catch (Exception ex)
+            {
+                MostrarMensaje("Error: " + ex.Message, false);
+                hfModalAbierto.Value = "1";
+                ScriptManager.RegisterStartupScript(this, GetType(), "openModalError", "abrirModal();", true);
+            }
         }
         // ── Carrusel HTML ─────────────────────────────────────────────
         public string GenerarCarrusel(object proId, object fotosObj)
