@@ -330,7 +330,8 @@
 
     <asp:HiddenField ID="hfPagina"    runat="server" Value="1"/>
     <asp:HiddenField ID="hfTotalPags" runat="server" Value="1"/>
-
+    <asp:UpdatePanel ID="upGridProductos" runat="server" UpdateMode="Conditional">
+        <ContentTemplate>
     <div class="grid-wrapper">
       <asp:GridView ID="gvProductos" runat="server"
                     AutoGenerateColumns="false" CssClass="prod-grid"
@@ -435,6 +436,18 @@
                     CausesValidation="false" OnClick="btnNext_Click"/>
       </div>
     </div>
+    </ContentTemplate>
+       <Triggers>
+        <asp:AsyncPostBackTrigger ControlID="txtBuscar" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="ddlFiltroProveedor" EventName="SelectedIndexChanged" />
+        <asp:AsyncPostBackTrigger ControlID="ddlFiltroEstado" EventName="SelectedIndexChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtPrecioMin" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtPrecioMax" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtStockMin" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtStockMax" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="btnLimpiarFiltros" EventName="Click" />
+    </Triggers>
+    </asp:UpdatePanel>
   </div>
 
   <!-- ══ Modal Crear / Editar ══════════════════════════════════ -->
@@ -472,15 +485,16 @@
       </div>
       <div class="fg">
         <label>Precio *</label>
-        <asp:TextBox ID="txtPrecio" runat="server" CssClass="form-control"
-                     TextMode="Number" min="0" step="0.01" placeholder="0.00"/>
+        <asp:TextBox ID="txtPrecio" runat="server" CssClass="form-control" placeholder="0.00"/>
+        
         <asp:RequiredFieldValidator runat="server" ControlToValidate="txtPrecio"
              ErrorMessage="Requerido." ForeColor="#c0392b"
              Display="Dynamic" ValidationGroup="vgProd" Style="font-size:.75rem"/>
-        <asp:CompareValidator runat="server" ControlToValidate="txtPrecio"
-     Operator="GreaterThanEqual" ValueToCompare="0" Type="Double"
-     ErrorMessage="No puede ser negativo." ForeColor="#c0392b"
-     Display="Dynamic" ValidationGroup="vgProd" Style="font-size:.75rem"/>
+        
+        <asp:RegularExpressionValidator runat="server" ControlToValidate="txtPrecio"
+             ValidationExpression="^\d+([.,]\d+)?$"
+             ErrorMessage="Ingresa un valor positivo válido (ej. 30.8 o 30,8)." ForeColor="#c0392b"
+             Display="Dynamic" ValidationGroup="vgProd" Style="font-size:.75rem"/>
       </div>
 </div>
       <div class="modal-row">

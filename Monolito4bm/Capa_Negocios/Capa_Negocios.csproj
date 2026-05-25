@@ -120,6 +120,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AppSettingsSecrets.cs" />
+    <Compile Include="CN_Estadisticas.cs" />
     <Compile Include="CN_tbl_foto.cs" />
     <Compile Include="CN_tbl_producto.cs" />
     <Compile Include="CN_tbl_proveedor.cs" />

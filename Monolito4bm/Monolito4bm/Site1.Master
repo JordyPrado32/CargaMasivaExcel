@@ -119,6 +119,7 @@
 </head>
 <body>
   <form id="form1" runat="server">
+      <asp:ScriptManager ID="ScriptManager1" runat="server" />
     <nav>
 
       <%-- Logo --%>
@@ -136,6 +137,11 @@
         <li>
           <a href="Productos.aspx" runat="server">
             <i class="fa-solid fa-box"></i> Productos
+          </a>
+        </li>
+          <li>
+          <a href="Estadisticas.aspx" runat="server">
+            <i class="fa-solid fa-chart-pie"></i> Estadisticas
           </a>
         </li>
       </ul>

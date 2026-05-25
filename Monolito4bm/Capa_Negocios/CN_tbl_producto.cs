@@ -69,7 +69,9 @@ namespace Capa_Negocios
             int? proveedorId = null,
             char? estado = null,
             decimal? precioMin = null,
-            decimal? precioMax = null)
+            decimal? precioMax = null,
+            int? stockMin = null,
+            int? stockMax = null)
         {
             var q = dc.GetTable<tbl_producto>().AsQueryable();
 
@@ -83,6 +85,10 @@ namespace Capa_Negocios
                 q = q.Where(p => p.pro_precio >= precioMin.Value);
             if (precioMax.HasValue)
                 q = q.Where(p => p.pro_precio <= precioMax.Value);
+            if (stockMin.HasValue)
+                q = q.Where(p => p.pro_cantidad >= stockMin.Value);
+            if (stockMax.HasValue)
+                q = q.Where(p => p.pro_cantidad <= stockMax.Value);
 
             var resultados = q
                 .OrderByDescending(p => p.pro_id)   // <-- más reciente primero
@@ -128,9 +134,9 @@ namespace Capa_Negocios
         public static List<tbl_producto> BuscarPaginado(
             int pagina, int porPagina, out int totalRegistros,
             string nombre = null, int? proveedorId = null,
-            char? estado = null, decimal? precioMin = null, decimal? precioMax = null)
+            char? estado = null, decimal? precioMin = null, decimal? precioMax = null, int? stockMin = null, int? stockMax = null)
         {
-            var todos = Buscar(nombre, proveedorId, estado, precioMin, precioMax);
+            var todos = Buscar(nombre, proveedorId, estado, precioMin, precioMax, stockMin, stockMax);
             totalRegistros = todos.Count;
             return todos.Skip((pagina - 1) * porPagina).Take(porPagina).ToList();
         }

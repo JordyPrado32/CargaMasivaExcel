@@ -1,9 +1,10 @@
+using Capa_Datos;
+using Capa_Negocios;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Web.UI;
 using System.Web.UI.WebControls;
-using Capa_Datos;
-using Capa_Negocios;
 
 namespace Monolito4bm
 {
@@ -79,9 +80,11 @@ namespace Monolito4bm
                             ? (char?)null : ddlFiltroEstado.SelectedValue[0];
             decimal? pMin = string.IsNullOrEmpty(txtPrecioMin.Text) ? (decimal?)null : decimal.Parse(txtPrecioMin.Text);
             decimal? pMax = string.IsNullOrEmpty(txtPrecioMax.Text) ? (decimal?)null : decimal.Parse(txtPrecioMax.Text);
+            int? sMin = string.IsNullOrEmpty(txtStockMin.Text) ? (int?)null : int.Parse(txtStockMin.Text);
+            int? sMax = string.IsNullOrEmpty(txtStockMax.Text) ? (int?)null : int.Parse(txtStockMax.Text); 
 
             var lista = CN_tbl_producto.BuscarPaginado(
-                pagina, POR_PAGINA, out total, nombre, provId, estado, pMin, pMax);
+                pagina, POR_PAGINA, out total, nombre, provId, estado, pMin, pMax, sMin, sMax);
 
             gvProductos.DataSource = lista;
             gvProductos.DataBind();
@@ -188,12 +191,17 @@ namespace Monolito4bm
 
             try
             {
+                // TRUCO: Reemplazamos la coma por punto y forzamos la cultura invariante
+                // Así nos aseguramos de que C# siempre lo entienda como decimal correcto.
+                string precioLimpio = txtPrecio.Text.Replace(",", ".");
+                decimal precioFinal = decimal.Parse(precioLimpio, System.Globalization.CultureInfo.InvariantCulture);
+
                 var p = new tbl_producto
                 {
                     pro_id = id,
                     pro_nombre = nombre,
                     pro_cantidad = int.Parse(txtCantidad.Text),
-                    pro_precio = decimal.Parse(txtPrecio.Text),
+                    pro_precio = precioFinal, // <-- Asignamos el valor limpio aquí
                     prov_id = int.Parse(ddlProveedor.SelectedValue)
                 };
 
@@ -207,7 +215,6 @@ namespace Monolito4bm
             }
             catch (Exception ex) { MostrarMensaje("Error: " + ex.Message, false); hfModalAbierto.Value = "1"; }
         }
-
         // ── Carrusel HTML ─────────────────────────────────────────────
         public string GenerarCarrusel(object proId, object fotosObj)
         {
@@ -252,13 +259,18 @@ namespace Monolito4bm
             ddlProveedor.SelectedIndex = 0;
             litTituloModal.Text = "Nuevo Producto";
         }
-
         private void MostrarMensaje(string texto, bool exito)
         {
             string icon = exito ? "success" : "error";
             string title = exito ? "¡Éxito!" : "¡Atención!";
             string script = $"Swal.fire({{ title: '{title}', text: '{texto}', icon: '{icon}', confirmButtonColor: '#7a4aaa' }});";
-            ClientScript.RegisterStartupScript(this.GetType(), "swal_msg_fotos", script, true);
+
+            // 🔴 BORRA O COMENTA ESTA LÍNEA:
+            // ClientScript.RegisterStartupScript(this.GetType(), "swal_msg_fotos", script, true);
+
+            // 🟢 USA ESTA NUEVA LÍNEA (Compatible con UpdatePanel):
+            ScriptManager.RegisterStartupScript(this, this.GetType(), "swal_msg", script, true);
+
             string css = exito ? "alert alert-success" : "alert alert-danger";
             litMensaje.Text = $"<div class='{css}'>{texto}</div>";
         }

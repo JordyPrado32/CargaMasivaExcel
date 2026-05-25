@@ -105,14 +105,18 @@ namespace Capa_Negocios
                 throw new Exception("Error al desactivar proveedor: " + ex.Message);
             }
         }
-
-        // ── Eliminación física ──────────────────────────────────────
         public static void EliminarFisico(int id)
         {
+            // Usamos el DataContext que ya tienes declarado arriba en esta misma clase
+            // para verificar la relación desde la capa de negocios.
+            if (dc.GetTable<tbl_producto>().Any(p => p.prov_id == id))
+            {
+                throw new Exception("No se puede borrar de la base porque tiene productos, puede desactivar este proveedor.");
+            }
+
             try
             {
-                var prov = BuscarPorId(id)
-                    ?? throw new Exception("Proveedor no encontrado.");
+                var prov = BuscarPorId(id) ?? throw new Exception("Proveedor no encontrado.");
                 dc.GetTable<tbl_proveedor>().DeleteOnSubmit(prov);
                 dc.SubmitChanges();
             }
