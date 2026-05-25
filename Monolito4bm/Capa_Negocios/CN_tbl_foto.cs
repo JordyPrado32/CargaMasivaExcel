@@ -1,0 +1,47 @@
+using Capa_Datos;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Capa_Negocios
+{
+    public class CN_tbl_foto
+    {
+        private static MonolitoDataContext dc = new MonolitoDataContext();
+
+        // ── Trae todas las fotos CON bytes (base64) de un usuario ──
+        // Cambiamos tbl_foto por tbl_usuario_fotos aquí
+        public static List<tbl_usuario_fotos> ObtenerFotosPorUsuario(int usuId)
+        {
+            return dc.tbl_usuario_fotos
+                     .Where(f => f.usu_id == usuId)
+                     .OrderByDescending(f => f.es_principal)
+                     .ThenByDescending(f => f.fecha_subida)
+                     .ToList();
+        }
+
+        // ── Registrar entre 3 y 5 fotos ──────────────────────────
+        // Cambiamos tbl_foto por tbl_usuario_fotos aquí también
+        public static void RegistrarFotos(int usuarioId, List<tbl_usuario_fotos> listaFotos)
+        {
+            if (listaFotos == null || listaFotos.Count < 3 || listaFotos.Count > 5)
+                throw new Exception("Debe subir entre 3 y 5 fotografias validas.");
+
+            if (!listaFotos.All(f => f.foto != null && f.foto.Length > 0))
+                throw new Exception("Una o mas fotografias estan vacias.");
+
+            listaFotos
+                .Select((f, i) => new { f, i })
+                .ToList()
+                .ForEach(x =>
+                {
+                    x.f.usu_id = usuarioId;
+                    x.f.es_principal = x.i == 0;
+                    x.f.fecha_subida = DateTime.Now;
+                });
+
+            dc.tbl_usuario_fotos.InsertAllOnSubmit(listaFotos);
+            dc.SubmitChanges();
+        }
+    }
+}
