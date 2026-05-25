@@ -59,12 +59,13 @@ namespace Monolito4bm
             ddlFiltroProveedor.DataValueField = "prov_id";
             ddlFiltroProveedor.DataBind();
             ddlFiltroProveedor.Items.Insert(0, new ListItem("Todos los proveedores", ""));
+            ddlFiltroProveedor.Items.Insert(1, new ListItem("Sin proveedor", "-1"));
 
             ddlProveedor.DataSource = provs;
             ddlProveedor.DataTextField = "prov_nombre";
             ddlProveedor.DataValueField = "prov_id";
             ddlProveedor.DataBind();
-            ddlProveedor.Items.Insert(0, new ListItem("Seleccionar proveedor", ""));
+            ddlProveedor.Items.Insert(0, new ListItem("Sin proveedor", ""));
         }
 
         // ── Grid paginado ─────────────────────────────────────────────
@@ -151,9 +152,10 @@ namespace Monolito4bm
                         txtCantidad.Text = prod.pro_cantidad.ToString();
                         txtPrecio.Text = prod.pro_precio.HasValue
                                               ? prod.pro_precio.Value.ToString("0.00") : "0.00";
-                        ddlProveedor.SelectedValue = prod.prov_id.ToString();
+                        ddlProveedor.SelectedValue = prod.prov_id.HasValue ? prod.prov_id.Value.ToString() : "";
                         litTituloModal.Text = "Editar Producto";
                         hfModalAbierto.Value = "1";
+                        ScriptManager.RegisterStartupScript(this, GetType(), "openEditProducto", "abrirModal();", true);
                     }
                     break;
 
@@ -202,7 +204,7 @@ namespace Monolito4bm
                     pro_nombre = nombre,
                     pro_cantidad = int.Parse(txtCantidad.Text),
                     pro_precio = precioFinal, // <-- Asignamos el valor limpio aquí
-                    prov_id = int.Parse(ddlProveedor.SelectedValue)
+                    prov_id = string.IsNullOrWhiteSpace(ddlProveedor.SelectedValue) ? (int?)null : int.Parse(ddlProveedor.SelectedValue)
                 };
 
                 if (id == 0) CN_tbl_producto.Guardar(p);

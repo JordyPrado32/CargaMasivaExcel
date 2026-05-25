@@ -11,12 +11,12 @@
   <asp:ContentPlaceHolder ID="head" runat="server"/>
   <style>
     :root {
-      --morado:      #7a4aaa;
-      --morado-osc:  #5a2a8a;
-      --glass:       rgba(255,255,255,0.55);
-      --borde:       rgba(180,150,220,0.4);
-      --sombra:      rgba(120,80,180,0.15);
-      --texto:       #2c1a4a;
+      --morado: #7a4aaa;
+      --morado-osc: #5a2a8a;
+      --glass: rgba(255,255,255,0.55);
+      --borde: rgba(180,150,220,0.4);
+      --sombra: rgba(120,80,180,0.15);
+      --texto: #2c1a4a;
       --texto-suave: rgba(60,30,90,0.55);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -26,8 +26,6 @@
       font-family: 'Quicksand', sans-serif;
       color: var(--texto);
     }
-
-    /* ── NAV ── */
     nav {
       position: sticky; top: 0; z-index: 100;
       background: rgba(230,220,248,0.92);
@@ -37,16 +35,12 @@
       height: 70px; padding: 0 32px;
       display: flex; align-items: center; justify-content: space-between; gap: 16px;
     }
-
-    /* Logo */
     .nav-logo {
       font-family: 'Orbitron', monospace; font-size: 1.1rem; font-weight: 700;
       color: var(--morado-osc); letter-spacing: 2px; text-decoration: none;
       display: flex; align-items: center; gap: 8px;
     }
     .nav-logo i { color: var(--morado); font-size: 1rem; }
-
-    /* Links */
     .nav-links { display: flex; align-items: center; gap: 4px; list-style: none; flex: 1; justify-content: center; }
     .nav-links a {
       display: flex; align-items: center; gap: 8px;
@@ -60,11 +54,7 @@
       background: rgba(154,106,204,0.18); border-color: var(--borde);
       color: var(--morado); transform: translateY(-1px);
     }
-
-    /* Separador */
-    .nav-sep { width:1px; height:28px; background:var(--borde); margin:0 6px; flex-shrink:0; }
-
-    /* Perfil pill */
+    .nav-sep { width: 1px; height: 28px; background: var(--borde); margin: 0 6px; flex-shrink: 0; }
     .nav-perfil {
       display: flex; align-items: center; gap: 10px;
       background: var(--glass); border: 1px solid var(--borde);
@@ -86,8 +76,6 @@
       font-size: .9rem; font-weight: 700; color: var(--morado-osc);
       max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-
-    /* Boton salir */
     .btn-salir {
       display: flex; align-items: center; gap: 7px;
       background: rgba(180,80,80,0.1); border: 1px solid rgba(180,80,80,0.25);
@@ -98,17 +86,12 @@
     }
     .btn-salir:hover { background: rgba(180,80,80,0.22); transform: translateY(-1px); }
     .btn-salir i { font-size: .85rem; }
-
-    /* Contenido */
     #contenidoPrincipal { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
-
-    /* Footer */
     footer {
       margin-top: 60px; padding: 18px 32px; text-align: center;
       font-size: .78rem; color: var(--texto-suave);
       border-top: 1px solid var(--borde); background: rgba(230,220,248,0.4);
     }
-
     @media(max-width:768px){
       nav { height: auto; flex-wrap: wrap; padding: 10px 16px; gap: 10px; }
       .nav-links { justify-content: flex-start; flex-wrap: wrap; }
@@ -119,15 +102,12 @@
 </head>
 <body>
   <form id="form1" runat="server">
-      <asp:ScriptManager ID="ScriptManager1" runat="server" />
+    <asp:ScriptManager ID="ScriptManager1" runat="server" />
     <nav>
-
-      <%-- Logo --%>
       <a href="~/Default.aspx" runat="server" class="nav-logo">
         <i class="fa-solid fa-star"></i> MIAPP
       </a>
 
-      <%-- Links de navegacion con iconos Font Awesome --%>
       <ul class="nav-links">
         <li>
           <a href="Proveedores.aspx" runat="server">
@@ -139,16 +119,15 @@
             <i class="fa-solid fa-box"></i> Productos
           </a>
         </li>
-          <li>
+        <li>
           <a href="Estadisticas.aspx" runat="server">
-            <i class="fa-solid fa-chart-pie"></i> Estadisticas
+            <i class="fa-solid fa-chart-pie"></i> Estad&#237;sticas
           </a>
         </li>
       </ul>
 
       <div class="nav-sep"></div>
 
-      <%-- Perfil --%>
       <div class="nav-perfil">
         <div class="perfil-avatar">
           <asp:Literal ID="litavatar" runat="server"/>
@@ -161,14 +140,12 @@
         </div>
       </div>
 
-      <%-- Boton salir con SweetAlert --%>
       <asp:LinkButton ID="btnSalir" runat="server"
                       CssClass="btn-salir"
                       OnClick="btnSalir_Click"
                       OnClientClick="return false;">
         <i class="fa-solid fa-right-from-bracket"></i> Salir
       </asp:LinkButton>
-
     </nav>
 
     <div id="contenidoPrincipal">
@@ -181,16 +158,15 @@
     </footer>
   </form>
 
-  <%-- SweetAlert para confirmar cierre de sesion --%>
   <script>
     document.getElementById('<%= btnSalir.ClientID %>').addEventListener('click', function (e) {
       e.preventDefault();
       Swal.fire({
-        title: 'Cerrar sesion',
-        text: 'Seguro que deseas salir?',
+        title: 'Cerrar sesión',
+        text: '¿Seguro que deseas salir?',
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'Si, salir',
+        confirmButtonText: 'Sí, salir',
         cancelButtonText: 'Cancelar',
         confirmButtonColor: '#7a4aaa',
         cancelButtonColor: '#aaa',
@@ -199,7 +175,6 @@
         borderRadius: '16px'
       }).then(function (result) {
         if (result.isConfirmed) {
-          // dispara el postback real del LinkButton
           __doPostBack('<%= btnSalir.UniqueID %>', '');
         }
       });

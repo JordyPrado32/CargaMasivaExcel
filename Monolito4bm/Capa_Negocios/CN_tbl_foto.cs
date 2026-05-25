@@ -7,21 +7,18 @@ namespace Capa_Negocios
 {
     public class CN_tbl_foto
     {
-        private static MonolitoDataContext dc = new MonolitoDataContext();
-
-        // ── Trae todas las fotos CON bytes (base64) de un usuario ──
-        // Cambiamos tbl_foto por tbl_usuario_fotos aquí
         public static List<tbl_usuario_fotos> ObtenerFotosPorUsuario(int usuId)
         {
-            return dc.tbl_usuario_fotos
-                     .Where(f => f.usu_id == usuId)
-                     .OrderByDescending(f => f.es_principal)
-                     .ThenByDescending(f => f.fecha_subida)
-                     .ToList();
+            using (var dc = new MonolitoDataContext())
+            {
+                return dc.tbl_usuario_fotos
+                         .Where(f => f.usu_id == usuId)
+                         .OrderByDescending(f => f.es_principal)
+                         .ThenByDescending(f => f.fecha_subida)
+                         .ToList();
+            }
         }
 
-        // ── Registrar entre 3 y 5 fotos ──────────────────────────
-        // Cambiamos tbl_foto por tbl_usuario_fotos aquí también
         public static void RegistrarFotos(int usuarioId, List<tbl_usuario_fotos> listaFotos)
         {
             if (listaFotos == null || listaFotos.Count < 3 || listaFotos.Count > 5)
@@ -40,8 +37,11 @@ namespace Capa_Negocios
                     x.f.fecha_subida = DateTime.Now;
                 });
 
-            dc.tbl_usuario_fotos.InsertAllOnSubmit(listaFotos);
-            dc.SubmitChanges();
+            using (var dc = new MonolitoDataContext())
+            {
+                dc.tbl_usuario_fotos.InsertAllOnSubmit(listaFotos);
+                dc.SubmitChanges();
+            }
         }
     }
 }

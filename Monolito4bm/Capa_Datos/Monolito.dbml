@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?><Database Name="deberes_4to" Class="MonolitoDataContext" xmlns="http://schemas.microsoft.com/linqtosql/dbml/2007">
-  <Connection Mode="AppSettings" ConnectionString="Data Source=.;Initial Catalog=deberes_4to;Integrated Security=True;Encrypt=False;Trust Server Certificate=True" SettingsObjectName="Capa_Datos.Properties.Settings" SettingsPropertyName="deberes_4toConnectionString3" Provider="System.Data.SqlClient" />
+  <Connection Mode="AppSettings" ConnectionString="Data Source=JORDYPRADO\SQLEXPRESS01;Initial Catalog=deberes_4to;Integrated Security=True;Encrypt=True;Trust Server Certificate=True" SettingsObjectName="Capa_Datos.Properties.Settings" SettingsPropertyName="deberes_4toConnectionString3" Provider="System.Data.SqlClient" />
   <Table Name="dbo.tbl_juego_progreso" Member="tbl_juego_progreso">
     <Type Name="tbl_juego_progreso">
       <Column Name="progreso_id" Type="System.Int32" DbType="Int NOT NULL IDENTITY" IsPrimaryKey="true" IsDbGenerated="true" CanBeNull="false" />
@@ -21,14 +21,6 @@
       <Column Name="prov_id" Type="System.Int32" DbType="Int" CanBeNull="true" />
       <Association Name="tbl_producto_tbl_pro_fotos" Member="tbl_pro_fotos" ThisKey="pro_id" OtherKey="pro_id" Type="tbl_pro_fotos" />
       <Association Name="tbl_proveedor_tbl_producto" Member="tbl_proveedor" ThisKey="prov_id" OtherKey="prov_id" Type="tbl_proveedor" IsForeignKey="true" />
-    </Type>
-  </Table>
-  <Table Name="dbo.tbl_proveedor" Member="tbl_proveedor">
-    <Type Name="tbl_proveedor">
-      <Column Name="prov_id" Type="System.Int32" DbType="Int NOT NULL IDENTITY" IsPrimaryKey="true" IsDbGenerated="true" CanBeNull="false" />
-      <Column Name="prov_nombre" Type="System.String" DbType="VarChar(50)" CanBeNull="true" />
-      <Column Name="prov_estado" Type="System.Char" DbType="Char(1)" CanBeNull="true" />
-      <Association Name="tbl_proveedor_tbl_producto" Member="tbl_producto" ThisKey="prov_id" OtherKey="prov_id" Type="tbl_producto" />
     </Type>
   </Table>
   <Table Name="dbo.tbl_rol" Member="tbl_rol">
@@ -84,7 +76,27 @@
       <Association Name="tbl_producto_tbl_pro_fotos" Member="tbl_producto" ThisKey="pro_id" OtherKey="pro_id" Type="tbl_producto" IsForeignKey="true" DeleteRule="CASCADE" DeleteOnNull="true" />
     </Type>
   </Table>
+  <Table Name="dbo.tbl_proveedor_reasignacion_pendiente" Member="tbl_proveedor_reasignacion_pendientes">
+    <Type Name="tbl_proveedor_reasignacion_pendiente">
+      <Column Name="pendiente_id" Type="System.Int32" DbType="Int NOT NULL IDENTITY" IsPrimaryKey="true" IsDbGenerated="true" CanBeNull="false" />
+      <Column Name="pro_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="proveedor_nombre" Type="System.String" DbType="NVarChar(150) NOT NULL" CanBeNull="false" />
+      <Column Name="fecha_registro" Type="System.DateTime" DbType="DateTime2 NOT NULL" CanBeNull="false" />
+    </Type>
+  </Table>
+  <Table Name="dbo.tbl_proveedor" Member="tbl_proveedors">
+    <Type Name="tbl_proveedor">
+      <Column Name="prov_id" Type="System.Int32" DbType="Int NOT NULL IDENTITY" IsPrimaryKey="true" IsDbGenerated="true" CanBeNull="false" />
+      <Column Name="prov_nombre" Type="System.String" DbType="VarChar(50)" CanBeNull="true" />
+      <Column Name="prov_estado" Type="System.Char" DbType="Char(1)" CanBeNull="true" />
+      <Association Name="tbl_proveedor_tbl_producto" Member="tbl_productos" ThisKey="prov_id" OtherKey="prov_id" Type="tbl_producto" />
+    </Type>
+  </Table>
   <Function Name="dbo.sp_ResetearIntentosCaducados" Method="sp_ResetearIntentosCaducados">
+    <Return Type="System.Int32" />
+  </Function>
+  <Function Name="dbo.sp_eliminar_proveedor_permanente" Method="sp_eliminar_proveedor_permanente">
+    <Parameter Name="prov_id" Type="System.Int32" DbType="Int" />
     <Return Type="System.Int32" />
   </Function>
 </Database>

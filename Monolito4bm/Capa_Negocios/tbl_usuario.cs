@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Data.SqlClient;
 
 namespace Capa_Negocios
 {
@@ -21,8 +20,6 @@ namespace Capa_Negocios
         public DateTime fecha_creacion { get; set; }
         public List<tbl_foto> Fotos { get; set; } = new List<tbl_foto>();
 
-        private string cadena = "Data Source=.;Initial Catalog=deberes_4to;User ID=clase4b;Password=clase4b;Encrypt=False;";
-
         public int Registrarse(string passSinEncriptar, string n1, string n2, string a1, string a2)
         {
             var regexPass = new Regex(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&._-])[A-Za-z\d@$!%*?&._-]{8,}$");
@@ -39,31 +36,28 @@ namespace Capa_Negocios
             this.usu_nombres = $"{n1} {n2} {a1} {a2}";
             this.usu_nickname = GenerarNickname(n1, a1, a2, n2, this.usu_cedula);
 
-            int idGenerado = 0;
-            using (SqlConnection con = new SqlConnection(cadena))
+            using (var dc = new Capa_Datos.MonolitoDataContext())
             {
-                string query = @"INSERT INTO tbl_usuario 
-                                (usu_nombres, usu_cedula, correo_electronico, contraseña, fecha_nacimiento, usu_nickname, numero_celular, rol_id, fecha_creacion) 
-                                VALUES (@nom, @ced, @correo, @pass, @fecN, @nick, @cel, @rol, @fecC); 
-                                SELECT SCOPE_IDENTITY();";
-
-                using (SqlCommand cmd = new SqlCommand(query, con))
+                var nuevoUsuario = new Capa_Datos.tbl_usuario
                 {
-                    cmd.Parameters.AddWithValue("@nom", this.usu_nombres);
-                    cmd.Parameters.AddWithValue("@ced", this.usu_cedula);
-                    cmd.Parameters.AddWithValue("@correo", this.correo_electronico);
-                    cmd.Parameters.AddWithValue("@pass", this.contraseña);
-                    cmd.Parameters.AddWithValue("@fecN", this.fecha_nacimiento);
-                    cmd.Parameters.AddWithValue("@nick", this.usu_nickname);
-                    cmd.Parameters.AddWithValue("@cel", this.numero_celular);
-                    cmd.Parameters.AddWithValue("@rol", this.rol_id);
-                    cmd.Parameters.AddWithValue("@fecC", this.fecha_creacion);
+                    usu_nombres = this.usu_nombres,
+                    usu_cedula = this.usu_cedula,
+                    correo_electronico = this.correo_electronico,
+                    contraseña = this.contraseña,
+                    fecha_nacimiento = this.fecha_nacimiento,
+                    usu_nickname = this.usu_nickname,
+                    numero_celular = this.numero_celular,
+                    rol_id = this.rol_id,
+                    fecha_creacion = this.fecha_creacion,
+                    clave_temporal = false,
+                    intentos_fallidos = 0
+                };
 
-                    con.Open();
-                    idGenerado = Convert.ToInt32(cmd.ExecuteScalar());
-                }
+                dc.tbl_usuario.InsertOnSubmit(nuevoUsuario);
+                dc.SubmitChanges();
+
+                return nuevoUsuario.usu_id;
             }
-            return idGenerado;
         }
 
         private void ValidarNombres(string n1, string n2, string a1, string a2)
@@ -77,12 +71,14 @@ namespace Capa_Negocios
             Random rnd = new Random();
             string simbolos = "@#$*&";
             char sim = simbolos[rnd.Next(simbolos.Length)];
-            char c1 = n1.Trim()[0]; char c2 = a1.Trim()[0];
+            char c1 = n1.Trim()[0];
+            char c2 = a1.Trim()[0];
             char c3 = a2.Trim().Length > 1 ? a2.Trim()[1] : a2.Trim()[0];
             char c4 = n2.Trim().Length > 1 ? n2.Trim()[1] : n2.Trim()[0];
             string letras = $"{c1}{c2}{c3}{c4}";
             var mezcladas = letras.Select(c => rnd.Next(2) == 0 ? char.ToUpper(c) : char.ToLower(c)).ToArray();
-            char num1 = cedula[rnd.Next(cedula.Length)]; char num2 = cedula[rnd.Next(cedula.Length)];
+            char num1 = cedula[rnd.Next(cedula.Length)];
+            char num2 = cedula[rnd.Next(cedula.Length)];
             return $"{sim}{new string(mezcladas)}{num1}{num2}";
         }
 
@@ -91,8 +87,15 @@ namespace Capa_Negocios
             if (string.IsNullOrEmpty(cedula) || cedula.Length != 10 || !cedula.All(char.IsDigit)) return false;
             int prov = int.Parse(cedula.Substring(0, 2));
             if (prov < 1 || prov > 24) return false;
-            int suma = 0; int[] coef = { 2, 1, 2, 1, 2, 1, 2, 1, 2 };
-            for (int i = 0; i < 9; i++) { int val = int.Parse(cedula[i].ToString()) * coef[i]; suma += val > 9 ? val - 9 : val; }
+
+            int suma = 0;
+            int[] coef = { 2, 1, 2, 1, 2, 1, 2, 1, 2 };
+            for (int i = 0; i < 9; i++)
+            {
+                int val = int.Parse(cedula[i].ToString()) * coef[i];
+                suma += val > 9 ? val - 9 : val;
+            }
+
             int verificador = int.Parse(cedula[9].ToString());
             int calculado = ((suma + 9) / 10 * 10) - suma;
             if (calculado == 10) calculado = 0;

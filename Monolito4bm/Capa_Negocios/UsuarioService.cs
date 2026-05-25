@@ -1,14 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
+using System.Data;
 using System.Linq;
 using System.Net;
 using System.Net.Mail;
 using System.Security.Cryptography;
-using System.Text;
 using Twilio;
 using Twilio.Rest.Api.V2010.Account;
-using System.Data;
 
 namespace Capa_Negocios
 {
@@ -17,8 +15,6 @@ namespace Capa_Negocios
 
     public class UsuarioService
     {
-        private string cadena = "Data Source=.;Initial Catalog=deberes_4to;User ID=clase4b;Password=clase4b;Encrypt=False;";
-
         private static string SmtpHost => AppSettingsSecrets.GetRequiredString("Smtp", "Host");
         private static int SmtpPuerto => AppSettingsSecrets.GetRequiredInt("Smtp", "Port");
         private static string SmtpUsuario => AppSettingsSecrets.GetRequiredString("Smtp", "Username");
@@ -31,12 +27,19 @@ namespace Capa_Negocios
 
         public ResultadoLogin IniciarSesion(string nick, string passwordIngresada, out int rolId, out string correo, out string mensajeErr)
         {
-            rolId = 0; correo = string.Empty; mensajeErr = string.Empty;
+            rolId = 0;
+            correo = string.Empty;
+            mensajeErr = string.Empty;
+
             try
             {
                 DB_ResetearIntentosCaducados();
                 var dt = DB_ObtenerUsuarioPorNick(nick);
-                if (dt.Rows.Count == 0) { mensajeErr = "Usuario no encontrado."; return ResultadoLogin.CredencialesInvalidas; }
+                if (dt.Rows.Count == 0)
+                {
+                    mensajeErr = "Usuario no encontrado.";
+                    return ResultadoLogin.CredencialesInvalidas;
+                }
 
                 var row = dt.Rows[0];
                 int usuId = Convert.ToInt32(row["usu_id"]);
@@ -52,7 +55,7 @@ namespace Capa_Negocios
                 rolId = Convert.ToInt32(row["rol_id"]);
                 correo = row["correo_electronico"].ToString();
                 string nombre = row["usu_nombres"].ToString();
-                string celular = row.Table.Columns.Contains("numero_celular") ? row["numero_celular"].ToString() : "";
+                string celular = row.Table.Columns.Contains("numero_celular") ? row["numero_celular"].ToString() : string.Empty;
 
                 if (Convert.ToBoolean(row["clave_temporal"])) return ResultadoLogin.ExitosoClaveTemporalActiva;
 
@@ -65,7 +68,11 @@ namespace Capa_Negocios
 
                 return ResultadoLogin.Exitoso;
             }
-            catch (Exception ex) { mensajeErr = ex.Message; return ResultadoLogin.ErrorInterno; }
+            catch (Exception ex)
+            {
+                mensajeErr = ex.Message;
+                return ResultadoLogin.ErrorInterno;
+            }
         }
 
         public int ValidarOtp(string otpIngresado)
@@ -88,7 +95,11 @@ namespace Capa_Negocios
             try
             {
                 var dt = DB_ObtenerUsuarioPorNickOCorreo(nickOCorreo);
-                if (dt.Rows.Count == 0) { mensajeErr = "No encontrado."; return ResultadoRecuperacion.UsuarioNoEncontrado; }
+                if (dt.Rows.Count == 0)
+                {
+                    mensajeErr = "No encontrado.";
+                    return ResultadoRecuperacion.UsuarioNoEncontrado;
+                }
 
                 var row = dt.Rows[0];
                 int usuId = Convert.ToInt32(row["usu_id"]);
@@ -107,7 +118,11 @@ namespace Capa_Negocios
                 mensajeErr = "Clave temporal generada.";
                 return ResultadoRecuperacion.Exitoso;
             }
-            catch (Exception ex) { mensajeErr = ex.Message; return ResultadoRecuperacion.ErrorInterno; }
+            catch (Exception ex)
+            {
+                mensajeErr = ex.Message;
+                return ResultadoRecuperacion.ErrorInterno;
+            }
         }
 
         public void CambiarContrasena(int usuId, string nuevaClave)
@@ -115,9 +130,9 @@ namespace Capa_Negocios
             DB_ActualizarContrasena(usuId, BCrypt.Net.BCrypt.HashPassword(nuevaClave));
         }
 
-        public DataTable ObtenerEstadoCuentas() { return DB_ObtenerEstadoCuentas(); }
+        public DataTable ObtenerEstadoCuentas() => DB_ObtenerEstadoCuentas();
 
-        public void ResetearIntentosUsuario(int usuId) { DB_ResetearIntentosAdmin(usuId); }
+        public void ResetearIntentosUsuario(int usuId) => DB_ResetearIntentosAdmin(usuId);
 
         public void DesbloquearCuentaConClaveTemporal(int usuId, out string correoDestino, out string claveTemporal)
         {
@@ -133,22 +148,23 @@ namespace Capa_Negocios
             correoDestino = correo;
         }
 
-        // ══════════════════════════════════════════════════════════════
-        // MÉTODOS DE ENVÍO Y AUXILIARES
-        // ══════════════════════════════════════════════════════════════
         private void EnviarAccesoMfaPorCorreo(string destinatario, string nombre, string otp)
         {
             string urlQr = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + Uri.EscapeDataString("OTP:" + otp);
             string cuerpo = $"<html><body><h2>Verificación</h2><img src='{urlQr}'/><br><h1>{otp}</h1></body></html>";
             using (var smtp = new SmtpClient(SmtpHost, SmtpPuerto) { Credentials = new NetworkCredential(SmtpUsuario, SmtpPassword), EnableSsl = true })
-            { smtp.Send(new MailMessage(SmtpUsuario, destinatario, "Acceso Star Dash", cuerpo) { IsBodyHtml = true }); }
+            {
+                smtp.Send(new MailMessage(SmtpUsuario, destinatario, "Acceso Star Dash", cuerpo) { IsBodyHtml = true });
+            }
         }
 
         private void EnviarClaveTemporalPorCorreo(string destinatario, string nombre, string claveTemporal)
         {
             string cuerpo = $"<html><body><h2>Recuperación</h2><h1>{claveTemporal}</h1></body></html>";
             using (var smtp = new SmtpClient(SmtpHost, SmtpPuerto) { Credentials = new NetworkCredential(SmtpUsuario, SmtpPassword), EnableSsl = true })
-            { smtp.Send(new MailMessage(SmtpUsuario, destinatario, "Clave Temporal", cuerpo) { IsBodyHtml = true }); }
+            {
+                smtp.Send(new MailMessage(SmtpUsuario, destinatario, "Clave Temporal", cuerpo) { IsBodyHtml = true });
+            }
         }
 
         private void EnviarOtpPorWhatsApp(string celular, string nombre, string otp)
@@ -167,74 +183,353 @@ namespace Capa_Negocios
 
         private string GenerarOtp()
         {
-            byte[] data = new byte[8]; using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(data);
+            byte[] data = new byte[8];
+            using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(data);
             return new string(data.Select(b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).ToArray());
         }
+
         private string GenerarClaveTemporal()
         {
-            byte[] data = new byte[10]; using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(data);
+            byte[] data = new byte[10];
+            using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(data);
             return new string(data.Select(b => "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"[b % 54]).ToArray());
         }
+
         private string ObtenerPrimerNombreApellido(string completo)
         {
-            var p = completo.Trim().Split(' '); return p.Length >= 3 ? $"{p[0]} {p[2]}" : p[0];
+            var p = completo.Trim().Split(' ');
+            return p.Length >= 3 ? $"{p[0]} {p[2]}" : p[0];
         }
 
-        private DataTable ExecQuery(string q, params SqlParameter[] p)
-        {
-            using (var con = new SqlConnection(cadena))
-            using (var cmd = new SqlCommand(q, con))
-            {
-                if (p != null) cmd.Parameters.AddRange(p);
-                var da = new SqlDataAdapter(cmd); var dt = new DataTable();
-                con.Open(); da.Fill(dt); return dt;
-            }
-        }
         public int ObtenerIdPorNick(string nick)
         {
             var dt = DB_ObtenerUsuarioPorNick(nick);
             return dt.Rows.Count > 0 ? Convert.ToInt32(dt.Rows[0]["usu_id"]) : 0;
         }
-        private void ExecNonQuery(string q, params SqlParameter[] p)
+
+        private DataTable CrearTablaUsuarioLogin()
         {
-            using (var con = new SqlConnection(cadena))
-            using (var cmd = new SqlCommand(q, con))
+            var dt = new DataTable();
+            dt.Columns.Add("usu_id", typeof(int));
+            dt.Columns.Add("contraseña", typeof(string));
+            dt.Columns.Add("rol_id", typeof(int));
+            dt.Columns.Add("intentos_fallidos", typeof(int));
+            dt.Columns.Add("correo_electronico", typeof(string));
+            dt.Columns.Add("usu_nombres", typeof(string));
+            dt.Columns.Add("clave_temporal", typeof(bool));
+            dt.Columns.Add("numero_celular", typeof(string));
+            return dt;
+        }
+
+        private DataTable CrearTablaUsuarioRecuperacion()
+        {
+            var dt = new DataTable();
+            dt.Columns.Add("usu_id", typeof(int));
+            dt.Columns.Add("usu_nombres", typeof(string));
+            dt.Columns.Add("numero_celular", typeof(string));
+            dt.Columns.Add("correo_electronico", typeof(string));
+            return dt;
+        }
+
+        private DataTable CrearTablaEstadoCuentas()
+        {
+            var dt = new DataTable();
+            dt.Columns.Add("usu_id", typeof(int));
+            dt.Columns.Add("usu_nombres", typeof(string));
+            dt.Columns.Add("usu_nickname", typeof(string));
+            dt.Columns.Add("correo_electronico", typeof(string));
+            dt.Columns.Add("intentos_fallidos", typeof(int));
+            dt.Columns.Add("estado_cuenta", typeof(string));
+            dt.Columns.Add("ultimo_intento", typeof(DateTime));
+            dt.Columns.Add("rol_id", typeof(int));
+            return dt;
+        }
+
+        private DataTable CrearTablaUsuarioAdmin()
+        {
+            var dt = new DataTable();
+            dt.Columns.Add("usu_id", typeof(int));
+            dt.Columns.Add("usu_nombres", typeof(string));
+            dt.Columns.Add("usu_nickname", typeof(string));
+            dt.Columns.Add("correo_electronico", typeof(string));
+            dt.Columns.Add("numero_celular", typeof(string));
+            dt.Columns.Add("intentos_fallidos", typeof(int));
+            dt.Columns.Add("rol_id", typeof(int));
+            dt.Columns.Add("clave_temporal", typeof(bool));
+            return dt;
+        }
+
+        private DataTable CrearTablaOtp()
+        {
+            var dt = new DataTable();
+            dt.Columns.Add("usu_id", typeof(int));
+            dt.Columns.Add("rol_id", typeof(int));
+            dt.Columns.Add("codigo_otp", typeof(string));
+            return dt;
+        }
+
+        private DataTable DB_ObtenerUsuarioPorNick(string nick)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
             {
-                if (p != null) cmd.Parameters.AddRange(p);
-                con.Open(); cmd.ExecuteNonQuery();
+                var usuarios = dc.tbl_usuario
+                    .Where(u => u.usu_nickname == nick || u.correo_electronico == nick)
+                    .Select(u => new
+                    {
+                        u.usu_id,
+                        u.contraseña,
+                        u.rol_id,
+                        u.intentos_fallidos,
+                        u.correo_electronico,
+                        u.usu_nombres,
+                        u.clave_temporal,
+                        u.numero_celular
+                    })
+                    .ToList();
+
+                var dt = CrearTablaUsuarioLogin();
+                foreach (var u in usuarios)
+                {
+                    dt.Rows.Add(u.usu_id, u.contraseña, u.rol_id, u.intentos_fallidos, u.correo_electronico, u.usu_nombres, u.clave_temporal, u.numero_celular ?? string.Empty);
+                }
+                return dt;
             }
         }
 
-        private DataTable DB_ObtenerUsuarioPorNick(string nick) => ExecQuery("SELECT usu_id, contraseña, rol_id, intentos_fallidos, correo_electronico, usu_nombres, clave_temporal, numero_celular FROM tbl_usuario WHERE usu_nickname = @n OR correo_electronico = @n", new SqlParameter("@n", nick));
-        private DataTable DB_ObtenerUsuarioPorNickOCorreo(string valor) => ExecQuery("SELECT usu_id, usu_nombres, numero_celular, correo_electronico FROM tbl_usuario WHERE usu_nickname = @v OR correo_electronico = @v", new SqlParameter("@v", valor));
-        private DataTable DB_ObtenerEstadoCuentas() => ExecQuery("SELECT usu_id, usu_nombres, usu_nickname, correo_electronico, intentos_fallidos, estado_cuenta, ultimo_intento, rol_id FROM vw_EstadoCuentas ORDER BY rol_id, usu_nombres");
-        private DataTable DB_ObtenerUsuarioPorId(int id) => ExecQuery("SELECT usu_id, usu_nombres, usu_nickname, correo_electronico, numero_celular, intentos_fallidos, rol_id, clave_temporal FROM tbl_usuario WHERE usu_id = @id", new SqlParameter("@id", id));
-        private DataTable DB_ObtenerOtpVigente() => ExecQuery("SELECT usu_id, rol_id, codigo_otp FROM tbl_usuario WHERE codigo_otp IS NOT NULL AND DATEDIFF(MINUTE, fecha_otp_generado, GETDATE()) <= 5");
-
-        private void DB_IncrementarIntentosFallidos(int id) => ExecNonQuery("UPDATE tbl_usuario SET intentos_fallidos = intentos_fallidos + 1 WHERE usu_id = @id", new SqlParameter("@id", id));
-        private void DB_ResetearIntentos(int id) => ExecNonQuery("UPDATE tbl_usuario SET intentos_fallidos = 0 WHERE usu_id = @id", new SqlParameter("@id", id));
-        private void DB_ResetearIntentosAdmin(int id) => ExecNonQuery("UPDATE tbl_usuario SET intentos_fallidos = 0, codigo_otp = NULL, fecha_otp_generado = NULL WHERE usu_id = @id", new SqlParameter("@id", id));
-        private void DB_ResetearIntentosCaducados() => ExecNonQuery("UPDATE tbl_usuario SET intentos_fallidos = 0 WHERE intentos_fallidos > 0 AND intentos_fallidos <= 2 AND DATEDIFF(HOUR, fecha_otp_generado, GETDATE()) >= 24");
-        private void DB_GuardarOtp(int id, string hash, DateTime gen) => ExecNonQuery("UPDATE tbl_usuario SET codigo_otp = @o, fecha_otp_generado = @g WHERE usu_id = @id", new SqlParameter("@o", hash), new SqlParameter("@g", gen), new SqlParameter("@id", id));
-        private void DB_InvalidarOtpPorUsuario(int id) => ExecNonQuery("UPDATE tbl_usuario SET codigo_otp = NULL WHERE usu_id = @id", new SqlParameter("@id", id));
-        private void DB_GuardarClaveTemporal(int id, string hash) => ExecNonQuery("UPDATE tbl_usuario SET contraseña = @h, clave_temporal = 1 WHERE usu_id = @id", new SqlParameter("@h", hash), new SqlParameter("@id", id));
-        private void DB_ActualizarContrasena(int id, string hash) => ExecNonQuery("UPDATE tbl_usuario SET contraseña = @h, clave_temporal = 0 WHERE usu_id = @id", new SqlParameter("@h", hash), new SqlParameter("@id", id));
-    
-    public tbl_usuario ObtenerDatosUsuario(int usuId)
+        private DataTable DB_ObtenerUsuarioPorNickOCorreo(string valor)
         {
-            var dc = new Capa_Datos.MonolitoDataContext();
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuarios = dc.tbl_usuario
+                    .Where(u => u.usu_nickname == valor || u.correo_electronico == valor)
+                    .Select(u => new
+                    {
+                        u.usu_id,
+                        u.usu_nombres,
+                        u.numero_celular,
+                        u.correo_electronico
+                    })
+                    .ToList();
 
-            return dc.tbl_usuario
-                     .Where(u => u.usu_id == usuId)
-                     .Select(u => new tbl_usuario
-                     {
-                         usu_id = u.usu_id,
-                         usu_nombres = u.usu_nombres,
-                         usu_nickname = u.usu_nickname,
-                         correo_electronico = u.correo_electronico,
-                         rol_id = u.rol_id
-                     })
-                     .FirstOrDefault();
+                var dt = CrearTablaUsuarioRecuperacion();
+                foreach (var u in usuarios)
+                {
+                    dt.Rows.Add(u.usu_id, u.usu_nombres, u.numero_celular ?? string.Empty, u.correo_electronico);
+                }
+                return dt;
+            }
+        }
+
+        private DataTable DB_ObtenerEstadoCuentas()
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuarios = dc.tbl_usuario
+                    .OrderBy(u => u.rol_id)
+                    .ThenBy(u => u.usu_nombres)
+                    .Select(u => new
+                    {
+                        u.usu_id,
+                        u.usu_nombres,
+                        u.usu_nickname,
+                        u.correo_electronico,
+                        u.intentos_fallidos,
+                        estado_cuenta = u.intentos_fallidos >= 3 ? "Bloqueada" : "Activa",
+                        ultimo_intento = u.fecha_otp_generado,
+                        u.rol_id
+                    })
+                    .ToList();
+
+                var dt = CrearTablaEstadoCuentas();
+                foreach (var u in usuarios)
+                {
+                    var row = dt.NewRow();
+                    row["usu_id"] = u.usu_id;
+                    row["usu_nombres"] = u.usu_nombres;
+                    row["usu_nickname"] = u.usu_nickname ?? string.Empty;
+                    row["correo_electronico"] = u.correo_electronico;
+                    row["intentos_fallidos"] = u.intentos_fallidos;
+                    row["estado_cuenta"] = u.estado_cuenta;
+                    row["ultimo_intento"] = u.ultimo_intento.HasValue ? (object)u.ultimo_intento.Value : DBNull.Value;
+                    row["rol_id"] = u.rol_id;
+                    dt.Rows.Add(row);
+                }
+                return dt;
+            }
+        }
+
+        private DataTable DB_ObtenerUsuarioPorId(int id)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuarios = dc.tbl_usuario
+                    .Where(u => u.usu_id == id)
+                    .Select(u => new
+                    {
+                        u.usu_id,
+                        u.usu_nombres,
+                        u.usu_nickname,
+                        u.correo_electronico,
+                        u.numero_celular,
+                        u.intentos_fallidos,
+                        u.rol_id,
+                        u.clave_temporal
+                    })
+                    .ToList();
+
+                var dt = CrearTablaUsuarioAdmin();
+                foreach (var u in usuarios)
+                {
+                    dt.Rows.Add(u.usu_id, u.usu_nombres, u.usu_nickname ?? string.Empty, u.correo_electronico, u.numero_celular ?? string.Empty, u.intentos_fallidos, u.rol_id, u.clave_temporal);
+                }
+                return dt;
+            }
+        }
+
+        private DataTable DB_ObtenerOtpVigente()
+        {
+            DateTime limite = DateTime.Now.AddMinutes(-5);
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var codigos = dc.tbl_usuario
+                    .Where(u => u.codigo_otp != null && u.fecha_otp_generado.HasValue && u.fecha_otp_generado.Value >= limite)
+                    .Select(u => new
+                    {
+                        u.usu_id,
+                        u.rol_id,
+                        u.codigo_otp
+                    })
+                    .ToList();
+
+                var dt = CrearTablaOtp();
+                foreach (var c in codigos)
+                {
+                    dt.Rows.Add(c.usu_id, c.rol_id, c.codigo_otp);
+                }
+                return dt;
+            }
+        }
+
+        private void DB_IncrementarIntentosFallidos(int id)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuario = dc.tbl_usuario.FirstOrDefault(u => u.usu_id == id);
+                if (usuario == null) return;
+                usuario.intentos_fallidos += 1;
+                dc.SubmitChanges();
+            }
+        }
+
+        private void DB_ResetearIntentos(int id)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuario = dc.tbl_usuario.FirstOrDefault(u => u.usu_id == id);
+                if (usuario == null) return;
+                usuario.intentos_fallidos = 0;
+                dc.SubmitChanges();
+            }
+        }
+
+        private void DB_ResetearIntentosAdmin(int id)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuario = dc.tbl_usuario.FirstOrDefault(u => u.usu_id == id);
+                if (usuario == null) return;
+                usuario.intentos_fallidos = 0;
+                usuario.codigo_otp = null;
+                usuario.fecha_otp_generado = null;
+                dc.SubmitChanges();
+            }
+        }
+
+        private void DB_ResetearIntentosCaducados()
+        {
+            DateTime limite = DateTime.Now.AddHours(-24);
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuarios = dc.tbl_usuario
+                    .Where(u => u.intentos_fallidos > 0 &&
+                                u.intentos_fallidos <= 2 &&
+                                u.fecha_otp_generado.HasValue &&
+                                u.fecha_otp_generado.Value <= limite)
+                    .ToList();
+
+                if (!usuarios.Any()) return;
+
+                foreach (var usuario in usuarios)
+                {
+                    usuario.intentos_fallidos = 0;
+                }
+                dc.SubmitChanges();
+            }
+        }
+
+        private void DB_GuardarOtp(int id, string hash, DateTime gen)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuario = dc.tbl_usuario.FirstOrDefault(u => u.usu_id == id);
+                if (usuario == null) return;
+                usuario.codigo_otp = hash;
+                usuario.fecha_otp_generado = gen;
+                dc.SubmitChanges();
+            }
+        }
+
+        private void DB_InvalidarOtpPorUsuario(int id)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuario = dc.tbl_usuario.FirstOrDefault(u => u.usu_id == id);
+                if (usuario == null) return;
+                usuario.codigo_otp = null;
+                dc.SubmitChanges();
+            }
+        }
+
+        private void DB_GuardarClaveTemporal(int id, string hash)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuario = dc.tbl_usuario.FirstOrDefault(u => u.usu_id == id);
+                if (usuario == null) return;
+                usuario.contraseña = hash;
+                usuario.clave_temporal = true;
+                dc.SubmitChanges();
+            }
+        }
+
+        private void DB_ActualizarContrasena(int id, string hash)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                var usuario = dc.tbl_usuario.FirstOrDefault(u => u.usu_id == id);
+                if (usuario == null) return;
+                usuario.contraseña = hash;
+                usuario.clave_temporal = false;
+                dc.SubmitChanges();
+            }
+        }
+
+        public tbl_usuario ObtenerDatosUsuario(int usuId)
+        {
+            using (var dc = new Capa_Datos.MonolitoDataContext())
+            {
+                return dc.tbl_usuario
+                    .Where(u => u.usu_id == usuId)
+                    .Select(u => new tbl_usuario
+                    {
+                        usu_id = u.usu_id,
+                        usu_nombres = u.usu_nombres,
+                        usu_nickname = u.usu_nickname,
+                        correo_electronico = u.correo_electronico,
+                        rol_id = u.rol_id
+                    })
+                    .FirstOrDefault();
+            }
         }
     }
 }

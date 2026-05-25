@@ -436,18 +436,6 @@
                     CausesValidation="false" OnClick="btnNext_Click"/>
       </div>
     </div>
-    </ContentTemplate>
-       <Triggers>
-        <asp:AsyncPostBackTrigger ControlID="txtBuscar" EventName="TextChanged" />
-        <asp:AsyncPostBackTrigger ControlID="ddlFiltroProveedor" EventName="SelectedIndexChanged" />
-        <asp:AsyncPostBackTrigger ControlID="ddlFiltroEstado" EventName="SelectedIndexChanged" />
-        <asp:AsyncPostBackTrigger ControlID="txtPrecioMin" EventName="TextChanged" />
-        <asp:AsyncPostBackTrigger ControlID="txtPrecioMax" EventName="TextChanged" />
-        <asp:AsyncPostBackTrigger ControlID="txtStockMin" EventName="TextChanged" />
-        <asp:AsyncPostBackTrigger ControlID="txtStockMax" EventName="TextChanged" />
-        <asp:AsyncPostBackTrigger ControlID="btnLimpiarFiltros" EventName="Click" />
-    </Triggers>
-    </asp:UpdatePanel>
   </div>
 
   <!-- ══ Modal Crear / Editar ══════════════════════════════════ -->
@@ -499,12 +487,8 @@
 </div>
       <div class="modal-row">
         <div class="fg" style="min-width:100%">
-          <label>Proveedor *</label>
+          <label>Proveedor</label>
           <asp:DropDownList ID="ddlProveedor" runat="server" CssClass="form-control"/>
-          <asp:RequiredFieldValidator runat="server" ControlToValidate="ddlProveedor"
-               InitialValue="" ErrorMessage="Selecciona un proveedor."
-               ForeColor="#c0392b" Display="Dynamic" ValidationGroup="vgProd"
-               Style="font-size:.75rem"/>
         </div>
       </div>
 
@@ -523,6 +507,18 @@
 
   <asp:HiddenField ID="hfModalAbierto"    runat="server" Value="0"/>
   <asp:HiddenField ID="hfFiltrosAbiertos" runat="server" Value="0"/>
+    </ContentTemplate>
+       <Triggers>
+        <asp:AsyncPostBackTrigger ControlID="txtBuscar" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="ddlFiltroProveedor" EventName="SelectedIndexChanged" />
+        <asp:AsyncPostBackTrigger ControlID="ddlFiltroEstado" EventName="SelectedIndexChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtPrecioMin" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtPrecioMax" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtStockMin" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="txtStockMax" EventName="TextChanged" />
+        <asp:AsyncPostBackTrigger ControlID="btnLimpiarFiltros" EventName="Click" />
+    </Triggers>
+    </asp:UpdatePanel>
 
   <script>
   // ── Modal ────────────────────────────────────────────────────
