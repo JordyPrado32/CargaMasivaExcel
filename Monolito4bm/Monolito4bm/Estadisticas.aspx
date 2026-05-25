@@ -38,8 +38,6 @@
     </style>
 </asp:Content>
 <asp:Content ID="Content2" ContentPlaceHolderID="ContentPlaceHolder1" runat="server">
-    <asp:ScriptManager ID="ScriptManager1" runat="server"></asp:ScriptManager>
-    
     <div class="dashboard-wrapper">
         <h2 class="dashboard-title">Panel de Estadísticas</h2>
         

@@ -1,14 +1,9 @@
 using System;
-using System.Data;
-using System.Data.SqlClient;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Capa_Negocios
 {
-    // ══════════════════════════════════════════════════════════════
-    // MODELOS del juego (clases planas de transferencia de datos)
-    // ══════════════════════════════════════════════════════════════
-
     public class ProgresoJuego
     {
         public int NivelDesbloqueado { get; set; } = 1;
@@ -34,104 +29,78 @@ namespace Capa_Negocios
         public bool NuevoRecord { get; set; }
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // SERVICIO principal del juego
-    // ══════════════════════════════════════════════════════════════
-
     public class JuegoService
     {
-        // ── LA CADENA DE CONEXIÓN ESTÁ AQUÍ AHORA ──
-        private string cadena = "Data Source=.;Initial Catalog=deberes_4to;User ID=clase4b;Password=clase4b;Encrypt=False;";
-
-        // ── Métodos Privados para interactuar con SQL directamente ──
-        private DataTable DB_ObtenerProgresoJuego(int usuId)
+        private ProgresoJuego DB_ObtenerProgresoJuego(int usuId)
         {
-            using (SqlConnection con = new SqlConnection(cadena))
+            using (var dc = new Capa_Datos.MonolitoDataContext())
             {
-                string query = @"
-                    SELECT usu_id, nivel_desbloqueado, mejor_puntuacion, monedas_totales
-                    FROM   tbl_juego_progreso
-                    WHERE  usu_id = @id";
-                SqlCommand cmd = new SqlCommand(query, con);
-                cmd.Parameters.AddWithValue("@id", usuId);
-                SqlDataAdapter da = new SqlDataAdapter(cmd);
-                DataTable dt = new DataTable();
-                con.Open();
-                da.Fill(dt);
-                return dt;
+                return dc.tbl_juego_progreso
+                    .Where(p => p.usu_id == usuId)
+                    .Select(p => new ProgresoJuego
+                    {
+                        NivelDesbloqueado = p.nivel_desbloqueado,
+                        MejorPuntuacion = p.mejor_puntuacion,
+                        MonedasTotales = p.monedas_totales
+                    })
+                    .FirstOrDefault();
             }
         }
 
         private void DB_GuardarProgresoJuego(int usuId, int nivelDesbloqueado, int mejorPuntuacion, int monedasTotales)
         {
-            using (SqlConnection con = new SqlConnection(cadena))
+            using (var dc = new Capa_Datos.MonolitoDataContext())
             {
-                string query = @"
-                    MERGE tbl_juego_progreso AS destino
-                    USING (SELECT @id AS usu_id) AS origen ON destino.usu_id = origen.usu_id
-                    WHEN MATCHED THEN
-                        UPDATE SET
-                            nivel_desbloqueado = CASE WHEN @nivel > destino.nivel_desbloqueado 
-                                                      THEN @nivel ELSE destino.nivel_desbloqueado END,
-                            mejor_puntuacion   = CASE WHEN @puntos > destino.mejor_puntuacion 
-                                                      THEN @puntos ELSE destino.mejor_puntuacion END,
-                            monedas_totales    = destino.monedas_totales + @monedas,
-                            ultima_partida     = GETDATE()
-                    WHEN NOT MATCHED THEN
-                        INSERT (usu_id, nivel_desbloqueado, mejor_puntuacion, monedas_totales, ultima_partida)
-                        VALUES (@id, @nivel, @puntos, @monedas, GETDATE());";
+                var progreso = dc.tbl_juego_progreso.FirstOrDefault(p => p.usu_id == usuId);
 
-                SqlCommand cmd = new SqlCommand(query, con);
-                cmd.Parameters.AddWithValue("@id", usuId);
-                cmd.Parameters.AddWithValue("@nivel", nivelDesbloqueado);
-                cmd.Parameters.AddWithValue("@puntos", mejorPuntuacion);
-                cmd.Parameters.AddWithValue("@monedas", monedasTotales);
-                con.Open();
-                cmd.ExecuteNonQuery();
+                if (progreso == null)
+                {
+                    progreso = new Capa_Datos.tbl_juego_progreso
+                    {
+                        usu_id = usuId,
+                        nivel_desbloqueado = nivelDesbloqueado,
+                        mejor_puntuacion = mejorPuntuacion,
+                        monedas_totales = monedasTotales,
+                        ultima_partida = DateTime.Now
+                    };
+                    dc.tbl_juego_progreso.InsertOnSubmit(progreso);
+                }
+                else
+                {
+                    progreso.nivel_desbloqueado = Math.Max(progreso.nivel_desbloqueado, nivelDesbloqueado);
+                    progreso.mejor_puntuacion = Math.Max(progreso.mejor_puntuacion, mejorPuntuacion);
+                    progreso.monedas_totales += monedasTotales;
+                    progreso.ultima_partida = DateTime.Now;
+                }
+
+                dc.SubmitChanges();
             }
         }
 
-        private DataTable DB_ObtenerRanking()
+        private List<RankingEntry> DB_ObtenerRanking()
         {
-            using (SqlConnection con = new SqlConnection(cadena))
+            using (var dc = new Capa_Datos.MonolitoDataContext())
             {
-                string query = @"
-                    SELECT TOP 10
-                           u.usu_nombres,
-                           u.usu_nickname,
-                           p.mejor_puntuacion,
-                           p.nivel_desbloqueado,
-                           p.monedas_totales
-                    FROM   tbl_juego_progreso p
-                    JOIN   tbl_usuario u ON u.usu_id = p.usu_id
-                    ORDER  BY p.mejor_puntuacion DESC";
-                SqlDataAdapter da = new SqlDataAdapter(query, con);
-                DataTable dt = new DataTable();
-                con.Open();
-                da.Fill(dt);
-                return dt;
+                return dc.tbl_juego_progreso
+                    .OrderByDescending(p => p.mejor_puntuacion)
+                    .Take(10)
+                    .Select(p => new RankingEntry
+                    {
+                        Nombre = p.tbl_usuario.usu_nombres,
+                        Nickname = p.tbl_usuario.usu_nickname,
+                        MejorPuntuacion = p.mejor_puntuacion,
+                        Nivel = p.nivel_desbloqueado,
+                        Monedas = p.monedas_totales
+                    })
+                    .ToList();
             }
         }
-        // ────────────────────────────────────────────────────────────
 
-        // ── Obtener progreso guardado ─────────────────────────────
         public ProgresoJuego ObtenerProgreso(int usuId)
         {
-            var dt = DB_ObtenerProgresoJuego(usuId);
-
-            if (dt.Rows.Count == 0)
-                return new ProgresoJuego();
-
-            var row = dt.Rows[0];
-            return new ProgresoJuego
-            {
-                NivelDesbloqueado = Convert.ToInt32(row["nivel_desbloqueado"]),
-                MejorPuntuacion = Convert.ToInt32(row["mejor_puntuacion"]),
-                MonedasTotales = Convert.ToInt32(row["monedas_totales"])
-            };
+            return DB_ObtenerProgresoJuego(usuId) ?? new ProgresoJuego();
         }
 
-        // ── Guardar resultado de una partida ─────────────────────
         public ResultadoPartida GuardarPartida(int usuId, int nivelJugado, int puntuacion, int monedasRecogidas)
         {
             var progresoActual = ObtenerProgreso(usuId);
@@ -156,27 +125,11 @@ namespace Capa_Negocios
             };
         }
 
-        // ── Ranking global ────────────────────────────────────────
         public List<RankingEntry> ObtenerRanking()
         {
-            var dt = DB_ObtenerRanking();
-            var lista = new List<RankingEntry>();
-
-            foreach (DataRow row in dt.Rows)
-            {
-                lista.Add(new RankingEntry
-                {
-                    Nombre = row["usu_nombres"].ToString(),
-                    Nickname = row["usu_nickname"].ToString(),
-                    MejorPuntuacion = Convert.ToInt32(row["mejor_puntuacion"]),
-                    Nivel = Convert.ToInt32(row["nivel_desbloqueado"]),
-                    Monedas = Convert.ToInt32(row["monedas_totales"])
-                });
-            }
-            return lista;
+            return DB_ObtenerRanking();
         }
 
-        // ── Reglas del juego: puntaje mínimo para pasar nivel ────
         public int ObtenerPuntajeMinimo(int nivel)
         {
             switch (nivel)
@@ -188,12 +141,8 @@ namespace Capa_Negocios
             }
         }
 
-        // ── Configuración de niveles (se pasa al JS como JSON) ──
-
         public string ObtenerConfigNivelJson(int nivel)
         {
-            // Cada nivel tiene distinta velocidad, obstáculos y monedas
-            // El JS usa este objeto para construir el mapa
             switch (nivel)
             {
                 case 1:
