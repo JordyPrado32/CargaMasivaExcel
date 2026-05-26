@@ -2,10 +2,13 @@ using Capa_Datos;
 using Capa_Negocios;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
+using System.Data.Linq;
 
 namespace Monolito4bm
 {
@@ -34,6 +37,15 @@ namespace Monolito4bm
         protected global::System.Web.UI.WebControls.HiddenField hfResumenProveedoresJson;
 
         private const int POR_PAGINA = 5;
+        private Dictionary<int, List<ProductCarouselSlide>> ProviderSlidesMap
+        {
+            get
+            {
+                return ViewState["ProviderSlidesMap"] as Dictionary<int, List<ProductCarouselSlide>>
+                    ?? new Dictionary<int, List<ProductCarouselSlide>>();
+            }
+            set { ViewState["ProviderSlidesMap"] = value; }
+        }
 
         private sealed class ChartMetric
         {
@@ -50,6 +62,15 @@ namespace Monolito4bm
             public int ActivePercentage { get; set; }
         }
 
+        [Serializable]
+        private sealed class ProductCarouselSlide
+        {
+            public int ProductId { get; set; }
+            public string ProductName { get; set; }
+            public int? PhotoId { get; set; }
+            public string PhotoPath { get; set; }
+        }
+
         protected void Page_Load(object sender, EventArgs e)
         {
             if (!IsPostBack)
@@ -61,22 +82,11 @@ namespace Monolito4bm
         private void CargarGrid()
         {
             int pagina = ObtenerPaginaActual();
-            var lista = CN_tbl_proveedor.Listar();
-
-            if (!string.IsNullOrWhiteSpace(txtBuscar.Text))
-            {
-                string termino = txtBuscar.Text.Trim();
-                lista = lista
-                    .Where(p => !string.IsNullOrWhiteSpace(p.prov_nombre) &&
-                                p.prov_nombre.IndexOf(termino, StringComparison.OrdinalIgnoreCase) >= 0)
-                    .ToList();
-            }
-
-            if (!string.IsNullOrEmpty(ddlFiltroEstado.SelectedValue))
-            {
-                char estado = ddlFiltroEstado.SelectedValue[0];
-                lista = lista.Where(p => p.prov_estado == estado).ToList();
-            }
+            string nombre = string.IsNullOrWhiteSpace(txtBuscar.Text) ? null : txtBuscar.Text.Trim();
+            char? estado = string.IsNullOrEmpty(ddlFiltroEstado.SelectedValue)
+                ? (char?)null
+                : ddlFiltroEstado.SelectedValue[0];
+            var lista = CN_tbl_proveedor.Buscar(nombre, estado);
 
             int total = lista.Count;
             int totalPags = Math.Max(1, (int)Math.Ceiling((double)total / POR_PAGINA));
@@ -103,10 +113,58 @@ namespace Monolito4bm
                 .Take(POR_PAGINA)
                 .ToList();
 
+            CargarCarruselProductosProveedor(listaPaginada);
+
             gvProveedores.DataSource = listaPaginada;
             gvProveedores.DataBind();
-
             CargarEstadisticas();
+        }
+
+        private void CargarCarruselProductosProveedor(IList<tbl_proveedor> proveedoresPagina)
+        {
+            proveedoresPagina = proveedoresPagina ?? new List<tbl_proveedor>();
+
+            if (proveedoresPagina.Count == 0)
+            {
+                ProviderSlidesMap = new Dictionary<int, List<ProductCarouselSlide>>();
+                return;
+            }
+
+            var idsProveedores = proveedoresPagina.Select(p => p.prov_id).ToList();
+
+            using (var dc = new MonolitoDataContext())
+            {
+                var slides = (from producto in dc.GetTable<tbl_producto>()
+                              where producto.prov_id.HasValue && idsProveedores.Contains(producto.prov_id.Value)
+                              orderby producto.pro_id descending
+                              select new
+                              {
+                                  ProviderId = producto.prov_id.Value,
+                                  ProductId = producto.pro_id,
+                                  ProductName = producto.pro_nombre,
+                                  Photo = producto.tbl_pro_fotos
+                                      .Where(f => f.foto_estado == 'A')
+                                      .OrderByDescending(f => f.fecha_subida)
+                                      .Select(f => new { f.foto_id, f.foto_ruta })
+                                      .FirstOrDefault()
+                              }).ToList()
+                              .Select(item => new
+                              {
+                                  item.ProviderId,
+                                  Slide = new ProductCarouselSlide
+                                  {
+                                      ProductId = item.ProductId,
+                                      ProductName = item.ProductName,
+                                      PhotoId = item.Photo != null ? (int?)item.Photo.foto_id : null,
+                                      PhotoPath = item.Photo != null ? item.Photo.foto_ruta : null
+                                  }
+                              })
+                              .ToList();
+
+                ProviderSlidesMap = slides
+                    .GroupBy(s => s.ProviderId)
+                    .ToDictionary(g => g.Key, g => g.Select(x => x.Slide).ToList());
+            }
         }
 
         private void CargarEstadisticas()
@@ -341,6 +399,61 @@ namespace Monolito4bm
 
             string css = exito ? "alert alert-success" : "alert alert-danger";
             litMensaje.Text = $"<div class='{css}'>{HttpUtility.HtmlEncode(texto)}</div>";
+        }
+        public string GenerarCarruselProveedor(object providerIdObj)
+        {
+            int providerId;
+            if (!int.TryParse(Convert.ToString(providerIdObj), out providerId))
+            {
+                return "<div class='no-foto'><i class='fa-solid fa-camera' style='font-size:1.3rem;'></i></div>";
+            }
+
+            List<ProductCarouselSlide> slides;
+            if (!ProviderSlidesMap.TryGetValue(providerId, out slides) || slides == null || !slides.Any())
+            {
+                return "<div class='no-foto'><i class='fa-solid fa-camera' style='font-size:1.3rem;'></i></div>";
+            }
+
+            var html = new StringBuilder();
+            html.Append("<div class='carousel-cell'>");
+            for (int i = 0; i < slides.Count; i++)
+            {
+                var slide = slides[i];
+                string act = i == 0 ? " active" : string.Empty;
+                string nombre = HttpUtility.HtmlEncode(slide.ProductName ?? "Producto sin nombre");
+                string ruta = (slide.PhotoPath ?? string.Empty).TrimStart('~', '/').Replace("\\", "/");
+                string fallback = slide.PhotoId.HasValue
+                    ? $" onerror=\"this.onerror=null;this.src='ImagenProductoFallback.ashx?id={slide.PhotoId.Value}';\""
+                    : string.Empty;
+
+                html.Append($"<div class='slide{act}'>");
+                if (!string.IsNullOrWhiteSpace(ruta))
+                {
+                    html.Append($"<img src='{ResolveUrl("~/" + ruta)}' alt='{nombre}' title='{nombre}'{fallback}/>");
+                }
+                else
+                {
+                    html.Append("<div class='provider-slide-inline-empty'>");
+                    html.Append("<i class='fa-solid fa-image'></i>");
+                    html.Append("</div>");
+                }
+                html.Append("</div>");
+            }
+
+            if (slides.Count > 1)
+            {
+                html.Append("<button type='button' class='prev'><i class='fa-solid fa-chevron-left'></i></button>");
+                html.Append("<button type='button' class='next'><i class='fa-solid fa-chevron-right'></i></button>");
+                html.Append("<div class='dots'>");
+                for (int i = 0; i < slides.Count; i++)
+                {
+                    html.Append($"<div class='dot{(i == 0 ? " on" : string.Empty)}'></div>");
+                }
+                html.Append("</div>");
+            }
+
+            html.Append("</div>");
+            return html.ToString();
         }
     }
 }

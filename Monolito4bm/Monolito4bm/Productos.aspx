@@ -6,6 +6,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
       crossorigin="anonymous"/>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
 :root {
   --card-bg:  rgba(255,255,255,0.72);
@@ -214,11 +215,112 @@
 .modal-row     { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
 .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:6px; }
 
+.dashboard-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+  gap:18px;
+}
+.dashboard-card {
+  background:linear-gradient(180deg, rgba(248,244,255,0.96) 0%, rgba(255,255,255,0.95) 100%);
+  border:1px solid rgba(180,150,220,0.26);
+  border-radius:18px;
+  padding:20px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.7);
+  min-height:340px;
+  display:flex;
+  flex-direction:column;
+}
+.dashboard-card.wide { grid-column:span 2; }
+.dashboard-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.dashboard-title { font-size:1rem; font-weight:700; color:#3b245f; margin:0; }
+.dashboard-subtitle { font-size:.8rem; color:#7b6a94; margin-top:4px; }
+.dashboard-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:rgba(122,74,170,0.10);
+  color:var(--accent2);
+  font-size:.74rem;
+  font-weight:700;
+}
+.chart-shell { position:relative; flex:1; min-height:240px; }
+.chart-shell canvas { width:100% !important; height:100% !important; }
+.chart-empty {
+  display:none;
+  height:100%;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  color:#7b6a94;
+  border:1px dashed rgba(122,74,170,0.25);
+  border-radius:14px;
+  padding:18px;
+  background:rgba(255,255,255,0.72);
+}
+.chart-empty.visible { display:flex; }
+.summary-layout {
+  display:grid;
+  grid-template-columns:minmax(180px, 220px) 1fr;
+  gap:18px;
+  align-items:center;
+  flex:1;
+}
+.gauge-wrap { display:flex; align-items:center; justify-content:center; }
+.gauge-ring {
+  width:180px;
+  height:180px;
+  border-radius:50%;
+  background:conic-gradient(var(--accent) 0deg, rgba(224,210,240,0.95) 0deg);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 16px 26px rgba(122,74,170,0.12);
+}
+.gauge-ring::before {
+  content:"";
+  width:132px;
+  height:132px;
+  border-radius:50%;
+  background:linear-gradient(180deg, #ffffff 0%, #f7f2ff 100%);
+  box-shadow:inset 0 0 0 1px rgba(148,120,180,0.16);
+}
+.gauge-center { position:absolute; text-align:center; }
+.gauge-value { display:block; font-size:2rem; font-weight:800; color:#3b245f; line-height:1; }
+.gauge-label { display:block; margin-top:6px; font-size:.82rem; color:#7b6a94; }
+.summary-metrics {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(120px, 1fr));
+  gap:12px;
+}
+.summary-item {
+  background:rgba(255,255,255,0.88);
+  border:1px solid rgba(180,150,220,0.18);
+  border-radius:14px;
+  padding:14px;
+}
+.summary-item .label { display:block; font-size:.78rem; color:#7b6a94; margin-bottom:6px; }
+.summary-item .value { display:block; font-size:1.38rem; font-weight:800; color:#3b245f; }
+.summary-footnote {
+  margin-top:14px;
+  padding-top:14px;
+  border-top:1px solid rgba(180,150,220,0.16);
+  font-size:.8rem;
+  color:#7b6a94;
+}
+
 @media(max-width:600px){
   .card { padding:14px 12px; }
   .modal-box { padding:20px 16px; }
   .modal-row { flex-direction:column; }
   .range-group { flex-direction:column; }
+  .summary-metrics { grid-template-columns:1fr; }
+}
+
+@media(max-width:900px){
+  .dashboard-card.wide { grid-column:span 1; }
+  .summary-layout { grid-template-columns:1fr; }
 }
 </style>
 </asp:Content>
@@ -246,7 +348,7 @@
       <span class="si"><i class="fa-solid fa-magnifying-glass"></i></span>
       <asp:TextBox ID="txtBuscar" runat="server"
                    placeholder="Buscar producto por nombre..."
-                   AutoPostBack="true" OnTextChanged="Buscar_Changed"/>
+                   AutoPostBack="false" OnTextChanged="Buscar_Changed"/>
     </div>
 
     <button class="filtros-toggle" onclick="toggleFiltros(); return false;">
@@ -437,6 +539,92 @@
                     CausesValidation="false" OnClick="btnNext_Click"/>
       </div>
     </div>
+
+    <asp:HiddenField ID="hfDistribucionProductosJson" runat="server" />
+    <asp:HiddenField ID="hfStockProductosJson" runat="server" />
+    <asp:HiddenField ID="hfResumenProductosJson" runat="server" />
+
+    <div class="card" id="cardDashboardProductos" style="margin-top:24px;">
+      <div class="card-title">
+        <i class="fa-solid fa-chart-line"></i> Panel analitico de productos
+      </div>
+
+      <div class="dashboard-grid">
+        <section class="dashboard-card" aria-labelledby="ttlDistribucionProductos">
+          <div class="dashboard-header">
+            <div>
+              <h3 class="dashboard-title" id="ttlDistribucionProductos">Distribucion por proveedor</h3>
+              <div class="dashboard-subtitle">Participacion del catalogo activo por proveedor.</div>
+            </div>
+            <span class="dashboard-badge"><i class="fa-solid fa-chart-pie"></i> Donut</span>
+          </div>
+          <div class="chart-shell">
+            <canvas id="chartDistribucionProductosGrid" aria-label="Distribucion de productos por proveedor"></canvas>
+            <div class="chart-empty" id="emptyDistribucionProductosGrid">No hay productos activos para graficar por proveedor.</div>
+          </div>
+        </section>
+
+        <section class="dashboard-card wide" aria-labelledby="ttlStockProductos">
+          <div class="dashboard-header">
+            <div>
+              <h3 class="dashboard-title" id="ttlStockProductos">Top productos por stock</h3>
+              <div class="dashboard-subtitle">Productos activos con mayor cantidad disponible.</div>
+            </div>
+            <span class="dashboard-badge"><i class="fa-solid fa-chart-column"></i> Barras</span>
+          </div>
+          <div class="chart-shell">
+            <canvas id="chartStockProductos" aria-label="Top productos por stock"></canvas>
+            <div class="chart-empty" id="emptyStockProductos">No hay stock activo disponible para este analisis.</div>
+          </div>
+        </section>
+
+        <section class="dashboard-card wide" aria-labelledby="ttlResumenProductos">
+          <div class="dashboard-header">
+            <div>
+              <h3 class="dashboard-title" id="ttlResumenProductos">Estado operativo de productos</h3>
+              <div class="dashboard-subtitle">Resumen del catalogo, disponibilidad activa y productos con fotos.</div>
+            </div>
+            <span class="dashboard-badge"><i class="fa-solid fa-gauge-high"></i> Resumen</span>
+          </div>
+
+          <div class="summary-layout">
+            <div class="gauge-wrap">
+              <div class="gauge-ring" id="gaugeProductos">
+                <div class="gauge-center">
+                  <span class="gauge-value" id="gaugeProductosPercent">0%</span>
+                  <span class="gauge-label">Productos activos</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="summary-metrics">
+                <div class="summary-item">
+                  <span class="label">Activos</span>
+                  <span class="value" id="summaryProductosActivos">0</span>
+                </div>
+                <div class="summary-item">
+                  <span class="label">Inactivos</span>
+                  <span class="value" id="summaryProductosInactivos">0</span>
+                </div>
+                <div class="summary-item">
+                  <span class="label">Total productos</span>
+                  <span class="value" id="summaryProductosTotal">0</span>
+                </div>
+                <div class="summary-item">
+                  <span class="label">Con fotos activas</span>
+                  <span class="value" id="summaryProductosConFotos">0</span>
+                </div>
+              </div>
+
+              <div class="summary-footnote" id="summaryProductosFootnote">
+                Sin datos suficientes para calcular el estado operativo del catalogo.
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
   </div>
 
   <!-- ══ Modal Crear / Editar ══════════════════════════════════ -->
@@ -518,6 +706,7 @@
         <asp:AsyncPostBackTrigger ControlID="txtStockMin" EventName="TextChanged" />
         <asp:AsyncPostBackTrigger ControlID="txtStockMax" EventName="TextChanged" />
         <asp:AsyncPostBackTrigger ControlID="btnLimpiarFiltros" EventName="Click" />
+        <asp:AsyncPostBackTrigger ControlID="btnGuardarProd" EventName="Click" />
     </Triggers>
     </asp:UpdatePanel>
 
@@ -535,14 +724,227 @@
   document.getElementById('modalProducto')
           .addEventListener('click', function(e){ if(e.target===this) cerrarModal(); });
 
-  window.addEventListener('DOMContentLoaded', function(){
+  window.productDashboardCharts = window.productDashboardCharts || {};
+
+  function readProductDashboardData(fieldId, fallback) {
+    var field = document.getElementById(fieldId);
+    if (!field || !field.value) {
+      return fallback;
+    }
+
+    try {
+      return JSON.parse(field.value);
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function toggleProductChartEmptyState(canvasId, emptyId, hasData) {
+    var canvas = document.getElementById(canvasId);
+    var empty = document.getElementById(emptyId);
+    if (!canvas || !empty) {
+      return;
+    }
+
+    canvas.style.display = hasData ? 'block' : 'none';
+    empty.classList.toggle('visible', !hasData);
+  }
+
+  function destroyProductChart(chartKey) {
+    if (window.productDashboardCharts[chartKey]) {
+      window.productDashboardCharts[chartKey].destroy();
+      window.productDashboardCharts[chartKey] = null;
+    }
+  }
+
+  function renderProductDonutChart(data) {
+    var labels = data.map(function(item) { return item.Label; });
+    var values = data.map(function(item) { return item.Value; });
+    var hasData = values.some(function(value) { return value > 0; });
+
+    toggleProductChartEmptyState('chartDistribucionProductosGrid', 'emptyDistribucionProductosGrid', hasData);
+    destroyProductChart('distribucion');
+
+    if (!hasData) return;
+
+    window.productDashboardCharts.distribucion = new Chart(document.getElementById('chartDistribucionProductosGrid'), {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: ['#7a4aaa', '#9d6dd1', '#5a2a8a', '#c39ae7', '#3f1c68', '#d8c0ef', '#8f5cc5', '#eadcf8'],
+          borderColor: '#ffffff',
+          borderWidth: 2,
+          hoverOffset: 10
+        }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        cutout: '62%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { usePointStyle: true, padding: 16 }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.label + ': ' + context.raw + ' producto(s)';
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function renderProductBarChart(data) {
+    var labels = data.map(function(item) { return item.Label; });
+    var values = data.map(function(item) { return item.Value; });
+    var hasData = values.some(function(value) { return value > 0; });
+
+    toggleProductChartEmptyState('chartStockProductos', 'emptyStockProductos', hasData);
+    destroyProductChart('stock');
+
+    if (!hasData) return;
+
+    window.productDashboardCharts.stock = new Chart(document.getElementById('chartStockProductos'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Unidades en stock',
+          data: values,
+          backgroundColor: 'rgba(122, 74, 170, 0.82)',
+          borderColor: '#5a2a8a',
+          borderWidth: 1.5,
+          borderRadius: 10,
+          maxBarThickness: 48
+        }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: '#5d4a78' }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#5d4a78', precision: 0 },
+            grid: { color: 'rgba(180, 150, 220, 0.18)' }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.raw + ' unidad(es) en stock';
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function renderProductSummary(summary) {
+    var total = summary.TotalProducts || 0;
+    var active = summary.ActiveProducts || 0;
+    var inactive = summary.InactiveProducts || 0;
+    var withPhotos = summary.ProductsWithPhotos || 0;
+    var percentage = summary.ActivePercentage || 0;
+
+    document.getElementById('summaryProductosActivos').textContent = active;
+    document.getElementById('summaryProductosInactivos').textContent = inactive;
+    document.getElementById('summaryProductosTotal').textContent = total;
+    document.getElementById('summaryProductosConFotos').textContent = withPhotos;
+    document.getElementById('gaugeProductosPercent').textContent = percentage + '%';
+    document.getElementById('gaugeProductos').style.background =
+      'conic-gradient(var(--accent) ' + (percentage * 3.6) + 'deg, rgba(224,210,240,0.95) 0deg)';
+
+    var footnote = 'Sin datos suficientes para calcular el estado operativo del catalogo.';
+    if (total > 0) {
+      footnote = active + ' de ' + total + ' producto(s) permanecen activos. '
+        + inactive + ' estan inactivos y '
+        + withPhotos + ' ya tienen al menos una foto activa.';
+    }
+
+    document.getElementById('summaryProductosFootnote').textContent = footnote;
+  }
+
+  function renderProductsDashboard() {
+    var distribucion = readProductDashboardData('<%= hfDistribucionProductosJson.ClientID %>', []);
+    var stock = readProductDashboardData('<%= hfStockProductosJson.ClientID %>', []);
+    var resumen = readProductDashboardData('<%= hfResumenProductosJson.ClientID %>', {});
+
+    renderProductDonutChart(distribucion);
+    renderProductBarChart(stock);
+    renderProductSummary(resumen);
+  }
+
+  function inicializarBusquedaPredictivaProducto() {
+    var input = document.getElementById('<%= txtBuscar.ClientID %>');
+    if (!input || input.dataset.liveSearchBound === '1') return;
+
+    var timeoutId = 0;
+    input.dataset.liveSearchBound = '1';
+    input.addEventListener('input', function() {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(function() {
+        __doPostBack('<%= txtBuscar.UniqueID %>', '');
+      }, 250);
+    });
+  }
+
+  function inicializarCarruseles() {
+    document.querySelectorAll('.carousel-cell').forEach(function(c) {
+      if (c.dataset.carouselBound === '1') return;
+
+      c.dataset.carouselBound = '1';
+      var slides = c.querySelectorAll('.slide');
+      var dots = c.querySelectorAll('.dot');
+      if (!slides.length) return;
+      var cur = 0;
+
+      function goTo(n) {
+        slides[cur].classList.remove('active');
+        if (dots[cur]) dots[cur].classList.remove('on');
+        cur = (n + slides.length) % slides.length;
+        slides[cur].classList.add('active');
+        if (dots[cur]) dots[cur].classList.add('on');
+      }
+
+      if (slides.length > 1) {
+        window.setInterval(function() { goTo(cur + 1); }, 3000);
+      }
+
+      var prev = c.querySelector('.prev'), next = c.querySelector('.next');
+      if (prev) prev.addEventListener('click', function (e) { e.stopPropagation(); goTo(cur - 1); });
+      if (next) next.addEventListener('click', function (e) { e.stopPropagation(); goTo(cur + 1); });
+      dots.forEach(function (d, i) { d.addEventListener('click', function () { goTo(i); }); });
+    });
+  }
+
+  function inicializarComponentesProductos() {
     if (document.getElementById('<%= hfModalAbierto.ClientID %>').value === '1')
       document.getElementById('modalProducto').classList.add('open');
     if (document.getElementById('<%= hfFiltrosAbiertos.ClientID %>').value === '1') {
       document.getElementById('filtrosPanel').classList.add('open');
       document.getElementById('arrowFilt').innerHTML = '<i class="fa-solid fa-chevron-up"></i>';
     }
-  });
+    inicializarBusquedaPredictivaProducto();
+    inicializarCarruseles();
+    renderProductsDashboard();
+  }
+
+  window.addEventListener('DOMContentLoaded', inicializarComponentesProductos);
+
+  if (typeof Sys !== 'undefined') {
+    Sys.WebForms.PageRequestManager.getInstance().add_endRequest(inicializarComponentesProductos);
+  }
 
   // ── Filtros ──────────────────────────────────────────────────
   function toggleFiltros() {
@@ -557,26 +959,7 @@
       }
 
       // ── Carrusel ─────────────────────────────────────────────────
-      document.addEventListener('DOMContentLoaded', function () {
-          document.querySelectorAll('.carousel-cell').forEach(function (c) {
-              var slides = c.querySelectorAll('.slide');
-              var dots = c.querySelectorAll('.dot');
-              if (!slides.length) return;
-              var cur = 0;
-              function goTo(n) {
-                  slides[cur].classList.remove('active');
-                  if (dots[cur]) dots[cur].classList.remove('on');
-                  cur = (n + slides.length) % slides.length;
-                  slides[cur].classList.add('active');
-                  if (dots[cur]) dots[cur].classList.add('on');
-              }
-              if (slides.length > 1) setInterval(function () { goTo(cur + 1); }, 3000);
-              var prev = c.querySelector('.prev'), next = c.querySelector('.next');
-              if (prev) prev.addEventListener('click', function (e) { e.stopPropagation(); goTo(cur - 1); });
-              if (next) next.addEventListener('click', function (e) { e.stopPropagation(); goTo(cur + 1); });
-              dots.forEach(function (d, i) { d.addEventListener('click', function () { goTo(i); }); });
-          });
-      });
+
   </script>
 
 </asp:Content>

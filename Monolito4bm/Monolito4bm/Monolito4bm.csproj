@@ -146,6 +146,8 @@
     <Content Include="favicon.ico" />
     <Content Include="FotosProducto.aspx" />
     <Content Include="Global.asax" />
+    <Content Include="ImagenProductoFallback.ashx" />
+    <Content Include="ImagenUsuarioFallback.ashx" />
     <Content Include="PaginaRol1.aspx" />
     <Content Include="PaginaRol2.aspx" />
     <Content Include="Productos.aspx" />

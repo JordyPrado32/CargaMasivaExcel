@@ -6,6 +6,7 @@ using System.Linq;
 using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
+using System.Data.Linq;
 
 namespace Monolito4bm
 {
@@ -133,11 +134,14 @@ namespace Monolito4bm
                 {
                     string ext = f.ContentType == "image/png" ? ".png" : ".jpg";
                     string archivo = $"prod_{proId}_{Guid.NewGuid():N}{ext}";
-                    f.SaveAs(Path.Combine(carpetaFisica, archivo));
+                    string rutaFisica = Path.Combine(carpetaFisica, archivo);
+                    f.SaveAs(rutaFisica);
+                    byte[] contenido = File.ReadAllBytes(rutaFisica);
 
                     return new tbl_pro_fotos
                     {
                         pro_id = proId,
+                        foto_bit = new Binary(contenido),
                         foto_ruta = $"Uploads/Productos/{archivo}",
                         foto_estado = 'A',
                         fecha_subida = DateTime.Now

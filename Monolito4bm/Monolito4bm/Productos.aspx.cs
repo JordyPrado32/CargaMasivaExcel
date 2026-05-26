@@ -1,7 +1,9 @@
 using Capa_Datos;
 using Capa_Negocios;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Web.UI;
 using System.Web.UI.WebControls;
@@ -37,8 +39,32 @@ namespace Monolito4bm
         protected global::System.Web.UI.WebControls.DropDownList ddlProveedor;
         protected global::System.Web.UI.WebControls.HiddenField hfModalAbierto;
         protected global::System.Web.UI.WebControls.HiddenField hfFiltrosAbiertos;
+        protected global::System.Web.UI.WebControls.HiddenField hfDistribucionProductosJson;
+        protected global::System.Web.UI.WebControls.HiddenField hfStockProductosJson;
+        protected global::System.Web.UI.WebControls.HiddenField hfResumenProductosJson;
 
         private const int POR_PAGINA = 5;
+
+        private sealed class ChartMetric
+        {
+            public string Label { get; set; }
+            public decimal Value { get; set; }
+        }
+
+        private sealed class ProductSummary
+        {
+            public int TotalProducts { get; set; }
+            public int ActiveProducts { get; set; }
+            public int InactiveProducts { get; set; }
+            public int ProductsWithPhotos { get; set; }
+            public int ActivePercentage { get; set; }
+        }
+
+        private int ProductoEditandoId
+        {
+            get { return ViewState["ProductoEditandoId"] != null ? (int)ViewState["ProductoEditandoId"] : 0; }
+            set { ViewState["ProductoEditandoId"] = value; }
+        }
 
         // ── Page_Load ────────────────────────────────────────────────
         protected void Page_Load(object sender, EventArgs e)
@@ -101,6 +127,8 @@ namespace Monolito4bm
 
             rptPager.DataSource = Enumerable.Range(1, totalPags).ToList();
             rptPager.DataBind();
+
+            CargarEstadisticas();
         }
 
         // ── Búsqueda / filtros ────────────────────────────────────────
@@ -155,6 +183,7 @@ namespace Monolito4bm
                     var prod = CN_tbl_producto.BuscarPorId(id);
                     if (prod != null)
                     {
+                        ProductoEditandoId = prod.pro_id;
                         hfProdId.Value = prod.pro_id.ToString();
                         txtNombre.Text = prod.pro_nombre;
                         txtCantidad.Text = prod.pro_cantidad.ToString();
@@ -197,7 +226,27 @@ namespace Monolito4bm
                     break;
 
                 case "ElimFis":
-                    try { CN_tbl_producto.EliminarFisico(id); MostrarMensaje("Producto eliminado permanentemente.", true); CargarGrid(); }
+                    try
+                    {
+                        var rutas = CN_tbl_producto.EliminarFisico(id);
+                        foreach (var ruta in rutas)
+                        {
+                            string limpia = (ruta ?? string.Empty).TrimStart('~', '/').Replace("\\", "/");
+                            if (string.IsNullOrWhiteSpace(limpia))
+                            {
+                                continue;
+                            }
+
+                            string rutaFisica = Server.MapPath("~/" + limpia);
+                            if (System.IO.File.Exists(rutaFisica))
+                            {
+                                System.IO.File.Delete(rutaFisica);
+                            }
+                        }
+
+                        MostrarMensaje("Producto eliminado permanentemente.", true);
+                        CargarGrid();
+                    }
                     catch (Exception ex) { MostrarMensaje(ex.Message, false); }
                     break;
             }
@@ -206,9 +255,18 @@ namespace Monolito4bm
         // ── Guardar / Actualizar ──────────────────────────────────────
         protected void btnGuardar_Click(object sender, EventArgs e)
         {
-            int id = 0;
-            int.TryParse(hfProdId.Value, out id);
-            string nombre = txtNombre.Text.Trim();
+            int id;
+            if (!int.TryParse(hfProdId.Value, out id))
+            {
+                id = ProductoEditandoId;
+            }
+            else if (id == 0 && ProductoEditandoId > 0)
+            {
+                id = ProductoEditandoId;
+            }
+
+            hfProdId.Value = id.ToString();
+            string nombre = NormalizarNombreProducto(txtNombre.Text);
 
             if (CN_tbl_producto.ExisteNombre(nombre, id))
             {
@@ -220,14 +278,11 @@ namespace Monolito4bm
 
             try
             {
-                // TRUCO: Reemplazamos la coma por punto y forzamos la cultura invariante
-                // Así nos aseguramos de que C# siempre lo entienda como decimal correcto.
                 string precioLimpio = txtPrecio.Text.Replace(",", ".");
                 decimal precioFinal = 0;
-                decimal.TryParse(precioLimpio, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out precioFinal);
+                decimal.TryParse(precioLimpio, NumberStyles.Any, CultureInfo.InvariantCulture, out precioFinal);
 
-                int cantidad = 0;
-                int.TryParse(txtCantidad.Text, out cantidad);
+                int cantidad = ParseCantidadProducto(txtCantidad.Text);
 
                 var p = new tbl_producto
                 {
@@ -270,10 +325,12 @@ namespace Monolito4bm
             for (int i = 0; i < fotos.Count; i++)
             {
                 string act = i == 0 ? " active" : "";
+                string ruta = (fotos[i].foto_ruta ?? string.Empty).TrimStart('~', '/').Replace("\\", "/");
                 html += $"<div class='slide{act}'>" +
-                        $"<img src='{ResolveUrl("~/" + fotos[i].foto_ruta)}'" +
+                        $"<img src='{ResolveUrl("~/" + ruta)}'" +
                         $" alt='Foto {i + 1}'" +
-                        $" onerror=\"this.src='https://placehold.co/110x80/ede6f8/7a4aaa?text=?'\"/>" +
+                        $" onerror=\"this.onerror=null;this.src='ImagenProductoFallback.ashx?id={fotos[i].foto_id}';\"" +
+                        "/>" +
                         "</div>";
             }
             if (fotos.Count > 1)
@@ -289,14 +346,94 @@ namespace Monolito4bm
             return html;
         }
 
+        private void CargarEstadisticas()
+        {
+            using (var dc = new MonolitoDataContext())
+            {
+                var distribucionPorProveedor = (from producto in dc.GetTable<tbl_producto>()
+                                                where producto.pro_estado == 'A'
+                                                group producto by (producto.tbl_proveedor != null
+                                                    ? producto.tbl_proveedor.prov_nombre
+                                                    : "Sin proveedor") into grupo
+                                                orderby grupo.Count() descending, grupo.Key
+                                                select new ChartMetric
+                                                {
+                                                    Label = grupo.Key,
+                                                    Value = grupo.Count()
+                                                }).ToList();
+
+                var stockPorProducto = (from producto in dc.GetTable<tbl_producto>()
+                                        where producto.pro_estado == 'A'
+                                        orderby (producto.pro_cantidad ?? 0) descending, producto.pro_nombre
+                                        select new ChartMetric
+                                        {
+                                            Label = producto.pro_nombre,
+                                            Value = producto.pro_cantidad ?? 0
+                                        }).Take(8).ToList();
+
+                int totalProducts = dc.GetTable<tbl_producto>().Count();
+                int activeProducts = dc.GetTable<tbl_producto>().Count(p => p.pro_estado == 'A');
+                int inactiveProducts = totalProducts - activeProducts;
+                int productsWithPhotos = dc.GetTable<tbl_producto>()
+                    .Count(p => p.tbl_pro_fotos.Any(f => f.foto_estado == 'A'));
+
+                var resumen = new ProductSummary
+                {
+                    TotalProducts = totalProducts,
+                    ActiveProducts = activeProducts,
+                    InactiveProducts = inactiveProducts,
+                    ProductsWithPhotos = productsWithPhotos,
+                    ActivePercentage = totalProducts == 0
+                        ? 0
+                        : (int)Math.Round((activeProducts * 100m) / totalProducts, MidpointRounding.AwayFromZero)
+                };
+
+                hfDistribucionProductosJson.Value = JsonConvert.SerializeObject(distribucionPorProveedor);
+                hfStockProductosJson.Value = JsonConvert.SerializeObject(stockPorProducto);
+                hfResumenProductosJson.Value = JsonConvert.SerializeObject(resumen);
+            }
+        }
+
         // ── Helpers ───────────────────────────────────────────────────
         private void LimpiarFormulario()
         {
+            ProductoEditandoId = 0;
             hfProdId.Value = "0"; txtNombre.Text = "";
             txtCantidad.Text = ""; txtPrecio.Text = "";
             ddlProveedor.SelectedIndex = 0;
             litTituloModal.Text = "Nuevo Producto";
         }
+
+        private static string NormalizarNombreProducto(string valor)
+        {
+            return (valor ?? string.Empty).Trim().TrimEnd(',', ';');
+        }
+
+        private static int ParseCantidadProducto(string valor)
+        {
+            string texto = (valor ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(texto))
+            {
+                return 0;
+            }
+
+            int entero;
+            if (int.TryParse(texto, NumberStyles.Integer, CultureInfo.CurrentCulture, out entero) ||
+                int.TryParse(texto, NumberStyles.Integer, CultureInfo.InvariantCulture, out entero))
+            {
+                return entero;
+            }
+
+            string normalizado = texto.Replace(" ", string.Empty).Replace(",", ".");
+            decimal decimalCantidad;
+            if (decimal.TryParse(normalizado, NumberStyles.Any, CultureInfo.InvariantCulture, out decimalCantidad))
+            {
+                return (int)Math.Round(decimalCantidad, MidpointRounding.AwayFromZero);
+            }
+
+            return 0;
+        }
+
         private void MostrarMensaje(string texto, bool exito)
         {
             string icon = exito ? "success" : "error";

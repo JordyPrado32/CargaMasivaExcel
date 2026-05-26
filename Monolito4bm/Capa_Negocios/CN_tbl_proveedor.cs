@@ -19,6 +19,29 @@ namespace Capa_Negocios
             }
         }
 
+        public static List<tbl_proveedor> Buscar(string nombre = null, char? estado = null)
+        {
+            using (var dc = new MonolitoDataContext())
+            {
+                var query = dc.GetTable<tbl_proveedor>().AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(nombre))
+                {
+                    string termino = nombre.Trim();
+                    query = query.Where(p => p.prov_nombre.Contains(termino));
+                }
+
+                if (estado.HasValue)
+                {
+                    query = query.Where(p => p.prov_estado == estado.Value);
+                }
+
+                return query
+                    .OrderByDescending(p => p.prov_id)
+                    .ToList();
+            }
+        }
+
         public static List<tbl_proveedor> ListarActivos()
         {
             using (var dc = new MonolitoDataContext())

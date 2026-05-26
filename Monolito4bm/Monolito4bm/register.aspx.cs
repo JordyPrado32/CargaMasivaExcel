@@ -14,6 +14,7 @@ namespace Monolito4bm
         private const int MinFotos = 3;
         private const int MaxFotos = 5;
         private const int MaxPesoFotoBytes = 2 * 1024 * 1024;
+        private const string CarpetaFotosRegistroVirtual = "~/Uploads/Usuarios/";
         private static readonly string[] ParticulasCompuestas =
         {
             "de", "del", "la", "las", "los", "san", "santa", "da", "das", "do", "dos", "van", "von"
@@ -25,6 +26,7 @@ namespace Monolito4bm
             public string Id { get; set; }
             public string NombreArchivo { get; set; }
             public string ContentType { get; set; }
+            public string Extension { get; set; }
             public byte[] Contenido { get; set; }
 
             public string PreviewUrl
@@ -141,12 +143,13 @@ namespace Monolito4bm
                 List<Capa_Negocios.tbl_foto> listaFotos = new List<Capa_Negocios.tbl_foto>();
                 foreach (FotoTemporal fotoTemporal in fotosTemporales)
                 {
+                    string rutaFoto = GuardarFotoRegistroEnDisco(idUsuarioGenerado, fotoTemporal);
                     listaFotos.Add(new Capa_Negocios.tbl_foto
                     {
                         nombre_archivo = fotoTemporal.NombreArchivo,
                         content_type = fotoTemporal.ContentType,
-                        // ¡LA SOLUCIÓN ESTÁ AQUÍ! Solo pásale el Contenido directo:
-                        foto = fotoTemporal.Contenido
+                        foto = fotoTemporal.Contenido,
+                        foto_ruta = rutaFoto
                     });
                 }
 
@@ -277,12 +280,14 @@ namespace Monolito4bm
 
                 using (BinaryReader br = new BinaryReader(file.InputStream))
                 {
+                    byte[] contenido = br.ReadBytes(file.ContentLength);
                     nuevasFotos.Add(new FotoTemporal
                     {
                         Id = Guid.NewGuid().ToString("N"),
                         NombreArchivo = Path.GetFileName(file.FileName),
                         ContentType = file.ContentType,
-                        Contenido = br.ReadBytes(file.ContentLength)
+                        Extension = ObtenerExtensionSegura(file.FileName, file.ContentType),
+                        Contenido = contenido
                     });
                 }
             }
@@ -306,6 +311,46 @@ namespace Monolito4bm
         private void LimpiarFotosTemporales()
         {
             Session.Remove(SessionFotosKey);
+        }
+
+        private string GuardarFotoRegistroEnDisco(int usuarioId, FotoTemporal foto)
+        {
+            string carpetaFisica = Server.MapPath(CarpetaFotosRegistroVirtual);
+            if (!Directory.Exists(carpetaFisica))
+            {
+                Directory.CreateDirectory(carpetaFisica);
+            }
+
+            string extension = string.IsNullOrWhiteSpace(foto.Extension)
+                ? ObtenerExtensionSegura(foto.NombreArchivo, foto.ContentType)
+                : foto.Extension;
+            string nombreArchivo = $"usr_{usuarioId}_{Guid.NewGuid():N}{extension}";
+            string rutaFisica = Path.Combine(carpetaFisica, nombreArchivo);
+
+            File.WriteAllBytes(rutaFisica, foto.Contenido);
+
+            return "Uploads/Usuarios/" + nombreArchivo;
+        }
+
+        private static string ObtenerExtensionSegura(string nombreArchivo, string contentType)
+        {
+            string extension = Path.GetExtension(nombreArchivo ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(extension))
+            {
+                return extension.ToLowerInvariant();
+            }
+
+            if (string.Equals(contentType, "image/png", StringComparison.OrdinalIgnoreCase))
+            {
+                return ".png";
+            }
+
+            if (string.Equals(contentType, "image/gif", StringComparison.OrdinalIgnoreCase))
+            {
+                return ".gif";
+            }
+
+            return ".jpg";
         }
 
         private void BindFotosPreview()

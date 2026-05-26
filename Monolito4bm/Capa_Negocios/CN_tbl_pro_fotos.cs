@@ -1,6 +1,7 @@
 using Capa_Datos;
 using System;
 using System.Collections.Generic;
+using System.Data.Linq;
 using System.Linq;
 
 namespace Capa_Negocios
@@ -42,6 +43,7 @@ namespace Capa_Negocios
                     {
                         f.foto_id,
                         f.pro_id,
+                        f.foto_bit,
                         f.foto_ruta,
                         f.foto_estado,
                         f.fecha_subida,
@@ -54,6 +56,7 @@ namespace Capa_Negocios
                 {
                     foto_id = x.foto_id,
                     pro_id = x.pro_id,
+                    foto_bit = x.foto_bit,
                     foto_ruta = x.foto_ruta,
                     foto_estado = x.foto_estado,
                     fecha_subida = x.fecha_subida,
@@ -144,6 +147,31 @@ namespace Capa_Negocios
             catch (Exception ex)
             {
                 throw new Exception("Error al cambiar estado de foto: " + ex.Message);
+            }
+        }
+
+        public static tbl_pro_fotos ObtenerFallback(int fotoId)
+        {
+            using (var dc = new MonolitoDataContext())
+            {
+                return dc.GetTable<tbl_pro_fotos>()
+                    .FirstOrDefault(f => f.foto_id == fotoId && f.foto_bit != null);
+            }
+        }
+
+        public static tbl_pro_fotos ObtenerParaResolver(int fotoId)
+        {
+            using (var dc = new MonolitoDataContext())
+            {
+                return dc.GetTable<tbl_pro_fotos>()
+                    .Where(f => f.foto_id == fotoId)
+                    .Select(f => new tbl_pro_fotos
+                    {
+                        foto_id = f.foto_id,
+                        foto_bit = f.foto_bit,
+                        foto_ruta = f.foto_ruta
+                    })
+                    .FirstOrDefault();
             }
         }
     }

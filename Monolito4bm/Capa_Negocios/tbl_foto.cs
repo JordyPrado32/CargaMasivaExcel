@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Data.Linq;
+using System.Linq;
+using Capa_Datos;
 
 namespace Capa_Negocios
 {
@@ -10,31 +13,32 @@ namespace Capa_Negocios
         public string nombre_archivo { get; set; }
         public string content_type { get; set; }
         public byte[] foto { get; set; }
+        public string foto_ruta { get; set; }
         public DateTime fecha_subida { get; set; }
         public bool es_principal { get; set; }
 
         public void RegistrarFotosValidadas(int usuarioId, List<tbl_foto> listaFotos)
         {
-            if (listaFotos.Count < 3 || listaFotos.Count > 5)
-                throw new Exception("Debe subir entre 3 y 5 fotografías válidas.");
+            if (listaFotos == null || listaFotos.Count < 3 || listaFotos.Count > 5)
+                throw new Exception("Debe subir entre 3 y 5 fotografias validas.");
 
-            using (var dc = new Capa_Datos.MonolitoDataContext())
+            using (var dc = new MonolitoDataContext())
             {
-                bool primera = true;
-                foreach (var f in listaFotos)
-                {
-                    dc.tbl_usuario_fotos.InsertOnSubmit(new Capa_Datos.tbl_usuario_fotos
+                var fechaBase = DateTime.Now;
+                var entidades = listaFotos
+                    .Select((f, index) => new tbl_usuario_foto
                     {
                         usu_id = usuarioId,
                         nombre_archivo = f.nombre_archivo,
                         content_type = f.content_type,
-                        foto = f.foto,
-                        fecha_subida = DateTime.Now,
-                        es_principal = primera
-                    });
-                    primera = false;
-                }
+                        foto = f.foto != null ? new Binary(f.foto) : null,
+                        fecha_subida = fechaBase,
+                        es_principal = index == 0,
+                        foto_ruta = f.foto_ruta
+                    })
+                    .ToList();
 
+                dc.tbl_usuario_fotos.InsertAllOnSubmit(entidades);
                 dc.SubmitChanges();
             }
         }

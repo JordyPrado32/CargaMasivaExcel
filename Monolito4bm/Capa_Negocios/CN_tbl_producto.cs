@@ -227,7 +227,7 @@ namespace Capa_Negocios
         }
 
         // ── Eliminación física ──────────────────────────────────────
-        public static void EliminarFisico(int id)
+        public static List<string> EliminarFisico(int id)
         {
             try
             {
@@ -236,8 +236,25 @@ namespace Capa_Negocios
                     var prod = dc.GetTable<tbl_producto>()
                         .FirstOrDefault(p => p.pro_id == id)
                         ?? throw new Exception("Producto no encontrado.");
+
+                    var fotos = dc.GetTable<tbl_pro_fotos>()
+                        .Where(f => f.pro_id == id)
+                        .ToList();
+
+                    var rutas = fotos
+                        .Select(f => f.foto_ruta)
+                        .Where(r => !string.IsNullOrWhiteSpace(r))
+                        .Distinct()
+                        .ToList();
+
+                    if (fotos.Any())
+                    {
+                        dc.GetTable<tbl_pro_fotos>().DeleteAllOnSubmit(fotos);
+                    }
+
                     dc.GetTable<tbl_producto>().DeleteOnSubmit(prod);
                     dc.SubmitChanges();
+                    return rutas;
                 }
             }
             catch (Exception ex) { throw new Exception("Error al eliminar el producto: " + ex.Message); }

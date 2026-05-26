@@ -205,6 +205,32 @@
 .prov-grid tbody tr { border-bottom:1px solid rgba(180,150,220,0.2); transition:background .15s; }
 .prov-grid tbody tr:hover { background:var(--row-hover); }
 .prov-grid tbody td { padding:11px 15px; vertical-align:middle; }
+.carousel-cell {
+  position:relative; width:110px; height:80px;
+  border-radius:10px; overflow:hidden;
+  background:rgba(37,99,235,0.08);
+}
+.carousel-cell .slide { position:absolute; inset:0; opacity:0; transition:opacity .5s; }
+.carousel-cell .slide.active { opacity:1; }
+.carousel-cell img { width:100%; height:100%; object-fit:cover; border-radius:10px; }
+.carousel-cell .prev, .carousel-cell .next {
+  position:absolute; top:50%; transform:translateY(-50%);
+  background:rgba(0,0,0,0.45); color:#fff; border:none; cursor:pointer;
+  border-radius:50%; width:22px; height:22px; font-size:.6rem;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .2s; z-index:2;
+}
+.carousel-cell .prev { left:3px; }
+.carousel-cell .next { right:3px; }
+.carousel-cell .prev:hover, .carousel-cell .next:hover { background:rgba(0,0,0,0.75); }
+.carousel-cell .dots { position:absolute; bottom:4px; left:50%; transform:translateX(-50%); display:flex; gap:4px; }
+.carousel-cell .dot { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,0.5); cursor:pointer; transition:background .2s; }
+.carousel-cell .dot.on { background:#fff; }
+.no-foto, .provider-slide-inline-empty {
+  width:110px; height:80px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(37,99,235,0.07); color:rgba(37,99,235,0.35); font-size:1.8rem;
+}
 
 .badge { display:inline-flex; align-items:center; gap:5px; padding:3px 11px; border-radius:20px; font-size:.72rem; font-weight:700; letter-spacing:.3px; }
 .badge-activo { background:rgba(39,174,96,.14); color:#1e8449; }
@@ -257,7 +283,7 @@
       <span class="si"><i class="fa-solid fa-magnifying-glass"></i></span>
       <asp:TextBox ID="txtBuscar" runat="server"
                    placeholder="Buscar proveedor por nombre..."
-                   AutoPostBack="true" OnTextChanged="Buscar_Changed"/>
+                   AutoPostBack="false" OnTextChanged="Buscar_Changed"/>
     </div>
 
     <button class="filtros-toggle" onclick="toggleFiltros(); return false;">
@@ -294,7 +320,7 @@
       <asp:HiddenField ID="hfStockProveedoresJson" runat="server" />
       <asp:HiddenField ID="hfResumenProveedoresJson" runat="server" />
 
-      <div class="card">
+      <div class="card" id="cardDashboardProveedores">
         <div class="card-title">
           <i class="fa-solid fa-chart-line"></i> Panel analítico de proveedores
         </div>
@@ -376,7 +402,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="cardCrudProveedores">
         <div class="card-title">
           <i class="fa-solid fa-list"></i> Lista de Proveedores
           <span style="margin-left:auto;font-size:.78rem;color:#94a3b8;font-weight:400;">
@@ -392,6 +418,11 @@
             <Columns>
               <asp:BoundField DataField="prov_id" HeaderText="ID" ItemStyle-Width="60px"/>
               <asp:BoundField DataField="prov_nombre" HeaderText="NOMBRE" ItemStyle-Width="450px"/>
+              <asp:TemplateField HeaderText="PRODUCTOS" ItemStyle-Width="140px">
+                <ItemTemplate>
+                  <%# GenerarCarruselProveedor(Eval("prov_id")) %>
+                </ItemTemplate>
+              </asp:TemplateField>
 
               <asp:TemplateField HeaderText="ESTADO" ItemStyle-Width="110px">
                 <ItemTemplate>
@@ -528,6 +559,34 @@
   });
 
   window.providerDashboardCharts = window.providerDashboardCharts || {};
+
+  function inicializarBusquedaPredictivaProveedor() {
+    var input = document.getElementById('<%= txtBuscar.ClientID %>');
+    if (!input || input.dataset.liveSearchBound === '1') {
+      return;
+    }
+
+    var timeoutId = 0;
+    input.dataset.liveSearchBound = '1';
+    input.addEventListener('input', function() {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(function() {
+        __doPostBack('<%= txtBuscar.UniqueID %>', '');
+      }, 250);
+    });
+  }
+
+  function reubicarDashboardProveedores() {
+    var dashboard = document.getElementById('cardDashboardProveedores');
+    var crud = document.getElementById('cardCrudProveedores');
+    if (!dashboard || !crud || !crud.parentNode) {
+      return;
+    }
+
+    if (crud.nextElementSibling !== dashboard) {
+      crud.parentNode.insertBefore(dashboard, crud.nextSibling);
+    }
+  }
 
   function readDashboardData(fieldId, fallback) {
     var field = document.getElementById(fieldId);
@@ -695,6 +754,35 @@
     renderSummaryCard(resumen);
   }
 
+  function inicializarCarruselProductoProveedor() {
+    document.querySelectorAll('.carousel-cell').forEach(function(c) {
+      if (c.dataset.carouselBound === '1') return;
+
+      c.dataset.carouselBound = '1';
+      var slides = c.querySelectorAll('.slide');
+      var dots = c.querySelectorAll('.dot');
+      if (!slides.length) return;
+      var cur = 0;
+
+      function goTo(n) {
+        slides[cur].classList.remove('active');
+        if (dots[cur]) dots[cur].classList.remove('on');
+        cur = (n + slides.length) % slides.length;
+        slides[cur].classList.add('active');
+        if (dots[cur]) dots[cur].classList.add('on');
+      }
+
+      if (slides.length > 1) {
+        window.setInterval(function() { goTo(cur + 1); }, 3000);
+      }
+
+      var prev = c.querySelector('.prev'), next = c.querySelector('.next');
+      if (prev) prev.addEventListener('click', function (e) { e.stopPropagation(); goTo(cur - 1); });
+      if (next) next.addEventListener('click', function (e) { e.stopPropagation(); goTo(cur + 1); });
+      dots.forEach(function (d, i) { d.addEventListener('click', function () { goTo(i); }); });
+    });
+  }
+
   function inicializarComponentes() {
     if (document.getElementById('<%= hfModalAbierto.ClientID %>').value === '1') {
       document.getElementById('modalProveedor').classList.add('open');
@@ -705,6 +793,9 @@
       document.getElementById('arrowFilt').innerHTML = '<i class="fa-solid fa-chevron-up"></i>';
     }
 
+    inicializarBusquedaPredictivaProveedor();
+    inicializarCarruselProductoProveedor();
+    reubicarDashboardProveedores();
     renderProvidersDashboard();
   }
 

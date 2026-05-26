@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Web;
 using System.Web.UI;
 using Capa_Negocios;
 
@@ -61,6 +63,7 @@ namespace Monolito4bm
             // usu_id puede ya estar en sesión o haberlo puesto CargarNombre()
             if (Session["usu_id"] == null)
             {
+                LogAvatar("Session usu_id vacio");
                 litavatar.Text = Placeholder();
                 return;
             }
@@ -70,33 +73,68 @@ namespace Monolito4bm
             try
             {
                 var fotos = CN_tbl_foto.ObtenerFotosPorUsuario(usuId);
+                LogAvatar($"Usuario={usuId} fotos={fotos.Count}");
 
                 // LINQ: primero la principal, si no cualquiera
                 var foto = fotos.FirstOrDefault(f => f.es_principal)
                         ?? fotos.FirstOrDefault();
 
-                if (foto?.foto != null && foto.foto.Length > 0)
+                if (foto != null)
                 {
-                    string mime = !string.IsNullOrEmpty(foto.content_type)
-                                    ? foto.content_type : "image/jpeg";
-                    string base64 = Convert.ToBase64String(foto.foto.ToArray());
-                    litavatar.Text = $"<img src='data:{mime};base64,{base64}' " +
-                                     "alt='Foto' " +
+                    int longitud = foto.foto != null ? foto.foto.Length : 0;
+                    LogAvatar($"Foto seleccionada id={foto.foto_id} principal={foto.es_principal} bytes={longitud} ruta={foto.foto_ruta ?? "(null)"} contentType={foto.content_type ?? "(null)"}");
+                    string src;
+                    if (foto.foto != null && foto.foto.Length > 0)
+                    {
+                        string mime = string.IsNullOrWhiteSpace(foto.content_type) ? "image/jpeg" : foto.content_type;
+                        string base64 = Convert.ToBase64String(foto.foto.ToArray());
+                        src = "data:" + mime + ";base64," + base64;
+                        LogAvatar($"Render inline base64 id={foto.foto_id} bytes={base64.Length}");
+                    }
+                    else
+                    {
+                        src = ResolveUrl("~/ImagenUsuarioFallback.ashx?id=" + foto.foto_id);
+                        LogAvatar($"Render por handler id={foto.foto_id} src={src}");
+                    }
+
+                    litavatar.Text = $"<img src='{src}' " +
+                                     "alt='Foto de perfil' " +
                                      "style='width:100%;height:100%;object-fit:cover;border-radius:50%;'/>";
                 }
                 else
                 {
+                    LogAvatar($"Usuario={usuId} sin foto seleccionada");
                     litavatar.Text = Placeholder();
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                LogAvatar($"Error avatar usuario={usuId}: {ex}");
                 litavatar.Text = Placeholder();
             }
         }
 
         private string Placeholder() =>
             "<i class='fa-solid fa-user' style='font-size:1.4rem;color:#7a4aaa;'></i>";
+
+        private void LogAvatar(string mensaje)
+        {
+            try
+            {
+                string carpeta = Server.MapPath("~/Uploads");
+                if (!Directory.Exists(carpeta))
+                {
+                    Directory.CreateDirectory(carpeta);
+                }
+
+                string archivo = Path.Combine(carpeta, "avatar-debug.log");
+                string linea = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] MASTER {mensaje}{Environment.NewLine}";
+                File.AppendAllText(archivo, linea);
+            }
+            catch
+            {
+            }
+        }
 
         protected void btnSalir_Click(object sender, EventArgs e)
         {

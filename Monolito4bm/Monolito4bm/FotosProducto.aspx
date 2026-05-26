@@ -274,7 +274,7 @@
               <div class="foto-thumb">
                 <img src='<%# ResolveUrl("~/" + Eval("foto_ruta")) %>'
                      alt="Foto <%# Eval("foto_id") %>"
-                     onerror="this.src='https://placehold.co/64x64/ede6f8/7a4aaa?text=?'"/>
+                     onerror="this.onerror=null;this.src='ImagenProductoFallback.ashx?id=<%# Eval("foto_id") %>';" />
               </div>
             </td>
 

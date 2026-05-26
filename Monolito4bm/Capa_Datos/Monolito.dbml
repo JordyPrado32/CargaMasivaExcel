@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?><Database Name="deberes_4to" Class="MonolitoDataContext" xmlns="http://schemas.microsoft.com/linqtosql/dbml/2007">
-  <Connection Mode="AppSettings" ConnectionString="Data Source=JORDYPRADO\SQLEXPRESS01;Initial Catalog=deberes_4to;Integrated Security=True;Encrypt=True;Trust Server Certificate=True" SettingsObjectName="Capa_Datos.Properties.Settings" SettingsPropertyName="deberes_4toConnectionString3" Provider="System.Data.SqlClient" />
+  <Connection Mode="AppSettings" ConnectionString="Data Source=JORDYPRADO\SQLEXPRESS01;Initial Catalog=deberes_4to;Integrated Security=True;Encrypt=True;Trust Server Certificate=True" SettingsObjectName="Capa_Datos.Properties.Settings" SettingsPropertyName="deberes_4toConnectionString2" Provider="System.Data.SqlClient" />
   <Table Name="dbo.tbl_juego_progreso" Member="tbl_juego_progreso">
     <Type Name="tbl_juego_progreso">
       <Column Name="progreso_id" Type="System.Int32" DbType="Int NOT NULL IDENTITY" IsPrimaryKey="true" IsDbGenerated="true" CanBeNull="false" />
@@ -49,20 +49,8 @@
       <Column Name="fecha_creacion" Type="System.DateTime" DbType="DateTime2 NOT NULL" CanBeNull="false" />
       <Column Name="clave_temporal" Type="System.Boolean" DbType="Bit NOT NULL" CanBeNull="false" />
       <Association Name="tbl_usuario_tbl_juego_progreso" Member="tbl_juego_progreso" ThisKey="usu_id" OtherKey="usu_id" Type="tbl_juego_progreso" />
-      <Association Name="tbl_usuario_tbl_usuario_fotos" Member="tbl_usuario_fotos" ThisKey="usu_id" OtherKey="usu_id" Type="tbl_usuario_fotos" />
+      <Association Name="tbl_usuario_tbl_usuario_foto" Member="tbl_usuario_fotos" ThisKey="usu_id" OtherKey="usu_id" Type="tbl_usuario_foto" />
       <Association Name="tbl_rol_tbl_usuario" Member="tbl_rol" ThisKey="rol_id" OtherKey="rol_id" Type="tbl_rol" IsForeignKey="true" />
-    </Type>
-  </Table>
-  <Table Name="dbo.tbl_usuario_fotos" Member="tbl_usuario_fotos">
-    <Type Name="tbl_usuario_fotos">
-      <Column Name="foto_id" Type="System.Int32" DbType="Int NOT NULL IDENTITY" IsPrimaryKey="true" IsDbGenerated="true" CanBeNull="false" />
-      <Column Name="usu_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
-      <Column Name="nombre_archivo" Type="System.String" DbType="NVarChar(255)" CanBeNull="true" />
-      <Column Name="content_type" Type="System.String" DbType="NVarChar(100)" CanBeNull="true" />
-      <Column Name="foto" Type="System.Data.Linq.Binary" DbType="VarBinary(MAX)" CanBeNull="true" UpdateCheck="Never" />
-      <Column Name="fecha_subida" Type="System.DateTime" DbType="DateTime2 NOT NULL" CanBeNull="false" />
-      <Column Name="es_principal" Type="System.Boolean" DbType="Bit NOT NULL" CanBeNull="false" />
-      <Association Name="tbl_usuario_tbl_usuario_fotos" Member="tbl_usuario" ThisKey="usu_id" OtherKey="usu_id" Type="tbl_usuario" IsForeignKey="true" DeleteRule="CASCADE" DeleteOnNull="true" />
     </Type>
   </Table>
   <Table Name="dbo.tbl_pro_fotos" Member="tbl_pro_fotos">
@@ -90,6 +78,19 @@
       <Column Name="prov_nombre" Type="System.String" DbType="VarChar(50)" CanBeNull="true" />
       <Column Name="prov_estado" Type="System.Char" DbType="Char(1)" CanBeNull="true" />
       <Association Name="tbl_proveedor_tbl_producto" Member="tbl_productos" ThisKey="prov_id" OtherKey="prov_id" Type="tbl_producto" />
+    </Type>
+  </Table>
+  <Table Name="dbo.tbl_usuario_fotos" Member="tbl_usuario_fotos">
+    <Type Name="tbl_usuario_foto">
+      <Column Name="foto_id" Type="System.Int32" DbType="Int NOT NULL IDENTITY" IsPrimaryKey="true" IsDbGenerated="true" CanBeNull="false" />
+      <Column Name="usu_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="nombre_archivo" Type="System.String" DbType="NVarChar(255)" CanBeNull="true" />
+      <Column Name="content_type" Type="System.String" DbType="NVarChar(100)" CanBeNull="true" />
+      <Column Name="foto" Type="System.Data.Linq.Binary" DbType="VarBinary(MAX)" CanBeNull="true" UpdateCheck="Never" />
+      <Column Name="fecha_subida" Type="System.DateTime" DbType="DateTime2 NOT NULL" CanBeNull="false" />
+      <Column Name="es_principal" Type="System.Boolean" DbType="Bit NOT NULL" CanBeNull="false" />
+      <Column Name="foto_ruta" Type="System.String" DbType="NVarChar(255)" CanBeNull="true" />
+      <Association Name="tbl_usuario_tbl_usuario_foto" Member="tbl_usuario" ThisKey="usu_id" OtherKey="usu_id" Type="tbl_usuario" IsForeignKey="true" DeleteRule="CASCADE" DeleteOnNull="true" />
     </Type>
   </Table>
   <Function Name="dbo.sp_ResetearIntentosCaducados" Method="sp_ResetearIntentosCaducados">
