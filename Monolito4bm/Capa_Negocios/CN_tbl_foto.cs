@@ -2,6 +2,7 @@ using Capa_Datos;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using tbl_usuario_foto = Capa_Datos.tbl_usuario_fotos;
 
 namespace Capa_Negocios
 {

@@ -120,6 +120,11 @@
           </a>
         </li>
         <li>
+          <a href="FotosProductosGeneral.aspx" runat="server">
+            <i class="fa-solid fa-images"></i> Fotos General
+          </a>
+        </li>
+        <li>
           <a href="Estadisticas.aspx" runat="server">
             <i class="fa-solid fa-chart-pie"></i> Estad&#237;sticas
           </a>
