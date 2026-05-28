@@ -69,6 +69,45 @@
       font-size:.88rem;
     }
 
+    /* ── Buscador ───────────────────────────────────── */
+    .search-bar {
+      display:flex; align-items:center; gap:10px;
+      background:rgba(255,255,255,0.9); border:1.5px solid rgba(122,74,170,0.3);
+      border-radius:40px; padding:9px 18px;
+      box-shadow:0 2px 10px rgba(120,80,180,.07); margin-bottom:14px;
+      transition:border-color .2s, box-shadow .2s;
+    }
+    .search-bar:focus-within {
+      border-color:var(--accent); box-shadow:0 0 0 3px rgba(122,74,170,0.12);
+    }
+    .search-bar input {
+      border:none; background:transparent; font-family:inherit;
+      font-size:.95rem; color:#2c1a4a; flex:1; outline:none;
+    }
+    .search-bar .si { color:var(--accent); font-size:1rem; }
+
+    /* ── Filtros ────────────────────────────────────── */
+    .filtros-toggle {
+      background:none; border:none; cursor:pointer; font-family:inherit;
+      font-size:.83rem; font-weight:700; color:var(--accent);
+      display:flex; align-items:center; gap:6px; padding:4px 0; margin-bottom:10px;
+    }
+    .filtros-panel {
+      display:none; gap:14px; flex-wrap:wrap; padding:16px;
+      background:rgba(122,74,170,0.04); border-radius:14px;
+      border:1px solid rgba(122,74,170,0.14); margin-bottom:14px;
+    }
+    .filtros-panel.open { display:flex; animation:fadeIn .22s ease; }
+    
+    .fg { display:flex; flex-direction:column; gap:5px; min-width:150px; flex:1; }
+    .fg label { font-size:.76rem; font-weight:700; color:var(--accent2); letter-spacing:.3px; }
+
+    .range-group {
+      display:flex; align-items:center; gap:6px; flex:1; min-width:220px;
+    }
+    .range-group .fg { min-width:80px; }
+    .range-sep { font-size:.8rem; color:#aaa; margin-top:20px; }
+
     /* ── Upload zone ────────────────────────────────── */
     .upload-zone {
       border:2.5px dashed rgba(122,74,170,0.4); border-radius:14px;
@@ -208,7 +247,7 @@
     <!-- ══ Mensajes ════════════════════════════════════════════════ -->
     <asp:Literal ID="litMensaje" runat="server"/>
 
-    <!-- ══ Carga Masiva Excel ══════════════════════════════════════ -->
+    <!-- ══ Carga Masiva Excel (Fuera de UpdatePanel) ══ -->
     <div class="card">
         <div class="card-title">
             <i class="fa-solid fa-file-excel" style="color:var(--success)"></i>
@@ -234,10 +273,10 @@
         </div>
     </div>
 
-    <!-- ══ Subir fotos ════════════════════════════════════════════ -->
+    <!-- ══ Subir fotos (Previsualización C# - Fuera de UpdatePanel) ══ -->
     <div class="card">
         <div class="card-title">
-            <i class="fa-solid fa-upload"></i> Subir Fotos Individuales/Múltiples
+            <i class="fa-solid fa-upload"></i> Subir Fotos
             <span style="font-size:.76rem;color:#aaa;font-weight:400;margin-left:4px;">
                 (JPG o PNG &mdash; Máx. 2&nbsp;MB por foto)
             </span>
@@ -254,12 +293,34 @@
             <p style="font-size:.78rem;">JPG, PNG hasta 2&nbsp;MB</p>
             <asp:FileUpload ID="fuFotos" runat="server"
                             AllowMultiple="true"
-                            accept="image/jpeg,image/png"
-                            onchange="previewFotos(this)"/>
+                            accept="image/jpeg,image/png"/>
         </div>
 
-        <div class="preview-strip" id="previewStrip"></div>
-        <div class="preview-count" id="previewCount"></div>
+        <div style="margin-top:12px; display:flex; gap:10px;">
+            <asp:Button ID="btnPrevisualizar" runat="server" CssClass="btn btn-secondary"
+                        Text="Agregar a Previsualización" OnClick="btnPrevisualizar_Click" />
+        </div>
+
+        <!-- Previsualización manejada por C# -->
+        <div class="preview-strip" id="previewStrip">
+            <asp:Repeater ID="rptFotosPreview" runat="server" OnItemCommand="rptFotosPreview_ItemCommand">
+                <ItemTemplate>
+                    <div class="preview-thumb" style="position:relative; width:80px; height:80px; border-radius:10px; overflow:hidden; border:2px solid var(--accent); background:rgba(122,74,170,0.05); display:inline-block; margin-right:8px; margin-bottom:8px;">
+                        <img src='<%# Eval("PreviewUrl") %>' alt='Preview' style="width:100%; height:100%; object-fit:cover;" />
+                        <asp:LinkButton runat="server"
+                                        CommandName="Eliminar"
+                                        CommandArgument='<%# Eval("Id") %>'
+                                        Style="position:absolute; top:4px; right:4px; background:var(--danger); color:#fff; border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer; font-size:.7rem; text-decoration:none;"
+                                        OnClientClick="return confirm('¿Quitar esta foto de la previsualización?');">
+                            <i class="fa-solid fa-xmark" style="pointer-events:none;"></i>
+                        </asp:LinkButton>
+                    </div>
+                </ItemTemplate>
+            </asp:Repeater>
+        </div>
+        <div class="preview-count" style="font-size:.78rem; color:rgba(60,30,90,0.5); margin-top:6px; font-weight:600;">
+            <asp:Literal ID="lblFotosPreviewInfo" runat="server" />
+        </div>
 
         <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;">
             <asp:Button ID="btnSubir" runat="server" CssClass="btn btn-primary"
@@ -267,154 +328,185 @@
         </div>
     </div>
 
-    <!-- ══ Lista de fotos general ══════════════════════════════════ -->
+    <!-- ══ Buscador + Filtros (FUERA DEL UPDATE PANEL) ══ -->
     <div class="card">
-        <div class="card-title">
-            <i class="fa-solid fa-images"></i> Todas las fotos guardadas
-            <span style="margin-left:auto;font-size:.79rem;color:#aaa;font-weight:400;">
-                <asp:Literal ID="litTotalFotos" runat="server"/>
-            </span>
+        <div class="search-bar">
+            <span class="si"><i class="fa-solid fa-magnifying-glass"></i></span>
+            <asp:TextBox ID="txtBuscar" runat="server"
+                         placeholder="Buscar foto por nombre de producto..."
+                         AutoPostBack="false" OnTextChanged="Filtros_Changed"/>
         </div>
 
-        <div style="overflow-x:auto;border-radius:12px;">
-            <asp:Repeater ID="rptFotos" runat="server"
-                          OnItemCommand="rptFotos_ItemCommand">
+        <button class="filtros-toggle" onclick="toggleFiltros(); return false;">
+            <i class="fa-solid fa-sliders"></i> Filtros avanzados
+            <span id="arrowFilt"><i class="fa-solid fa-chevron-down"></i></span>
+        </button>
 
-                <HeaderTemplate>
-                    <table class="fotos-table">
-                        <thead>
-                            <tr>
-                                <th style="width:76px;">FOTO</th>
-                                <th>PRODUCTO</th>
-                                <th style="width:80px;">ID FOTO</th>
-                                <th style="width:90px;">ESTADO</th>
-                                <th>FECHA SUBIDA</th>
-                                <th style="width:210px;">ACCIONES</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                </HeaderTemplate>
+        <div class="filtros-panel" id="filtrosPanel">
+            
+            <!-- Filtro Producto -->
+            <div class="fg">
+                <label>Producto</label>
+                <asp:DropDownList ID="ddlFiltroProducto" runat="server" CssClass="form-control"
+                                  AutoPostBack="true" OnSelectedIndexChanged="Filtros_Changed"/>
+            </div>
 
-                <ItemTemplate>
-                    <tr>
-                        <!-- Miniatura -->
-                        <td>
-                            <div class="foto-thumb">
-                                <img src='<%# ResolveUrl("~/" + Eval("foto_ruta")) %>'
-                                     alt="Foto <%# Eval("foto_id") %>"
-                                     onerror="this.onerror=null;this.src='ImagenProductoFallback.ashx?id=<%# Eval("foto_id") %>';" />
-                            </div>
-                        </td>
+            <!-- Filtro Estado -->
+            <div class="fg" style="max-width:170px;">
+                <label>Estado</label>
+                <asp:DropDownList ID="ddlFiltroEstado" runat="server" CssClass="form-control"
+                                  AutoPostBack="true" OnSelectedIndexChanged="Filtros_Changed">
+                    <asp:ListItem Value=""  Text="Todos los estados"/>
+                    <asp:ListItem Value="A" Text="Solo activas"/>
+                    <asp:ListItem Value="I" Text="Solo inactivas"/>
+                </asp:DropDownList>
+            </div>
 
-                        <!-- Nombre del producto -->
-                        <td>
-                            <div class="prod-name-cell">
-                                <i class="fa-solid fa-box" style="color:var(--accent);font-size:.85rem;"></i>
-                                <div>
-                                    <%# Eval("pro_nombre") %>
-                                    <span class="sub">ID prod.: <%# Eval("pro_id") %></span>
-                                </div>
-                            </div>
-                        </td>
+            <!-- Rango de fecha de subida -->
+            <div class="range-group">
+                <div class="fg">
+                    <label>Desde Fecha</label>
+                    <asp:TextBox ID="txtFechaDesde" runat="server" CssClass="form-control"
+                                 TextMode="Date" AutoPostBack="true" OnTextChanged="Filtros_Changed"/>
+                </div>
+                <span class="range-sep">—</span>
+                <div class="fg">
+                    <label>Hasta Fecha</label>
+                    <asp:TextBox ID="txtFechaHasta" runat="server" CssClass="form-control"
+                                 TextMode="Date" AutoPostBack="true" OnTextChanged="Filtros_Changed"/>
+                </div>
+            </div>
 
-                        <!-- ID foto -->
-                        <td style="color:#aaa;font-size:.8rem;">#<%# Eval("foto_id") %></td>
-
-                        <!-- Estado -->
-                        <td>
-                            <span class='badge <%# (char)Eval("foto_estado") == 'A' ? "badge-activo" : "badge-inactivo" %>'>
-                                <%# (char)Eval("foto_estado") == 'A' ? "Activa" : "Inactiva" %>
-                            </span>
-                        </td>
-
-                        <!-- Fecha subida -->
-                        <td style="font-size:.8rem;color:#999;">
-                            <%# Eval("fecha_subida", "{0:dd/MM/yyyy HH:mm}") %>
-                        </td>
-
-                        <!-- Acciones -->
-                        <td>
-                            <div class="row-actions">
-                                <%-- Desactivar / Reactivar segun estado --%>
-                                <asp:LinkButton runat="server"
-                                    CommandName='<%# Eval("foto_estado").ToString() == "A" ? "Desactivar" : "Reactivar" %>'
-                                    CommandArgument='<%# Eval("foto_id") %>'
-                                    CssClass='<%# "btn btn-sm " + (Eval("foto_estado").ToString() == "A" ? "btn-secondary" : "btn-success") %>'
-                                    OnClientClick='<%# Eval("foto_estado").ToString() == "A"
-                                        ? "return confirm(\"¿Desactivar esta foto?\");"
-                                        : "return confirm(\"¿Reactivar esta foto?\");" %>'>
-                                    <i class='<%# (char)Eval("foto_estado") == 'A' ? "fa-solid fa-eye-slash" : "fa-solid fa-eye" %>'></i>
-                                    <%# (char)Eval("foto_estado") == 'A' ? " Desactivar" : " Reactivar" %>
-                                </asp:LinkButton>
-
-                                <%-- Eliminar permanente --%>
-                                <asp:LinkButton runat="server"
-                                    CommandName="ElimFis"
-                                    CommandArgument='<%# Eval("foto_id") %>'
-                                    CssClass="btn btn-danger btn-sm"
-                                    OnClientClick="return confirm('¿Eliminar esta foto PERMANENTEMENTE?');">
-                                    <i class="fa-solid fa-trash"></i> Eliminar
-                                </asp:LinkButton>
-                            </div>
-                        </td>
-                    </tr>
-                </ItemTemplate>
-
-                <FooterTemplate>
-                        </tbody>
-                    </table>
-                </FooterTemplate>
-
-            </asp:Repeater>
+            <div style="display:flex;align-items:flex-end;">
+                <asp:LinkButton ID="btnLimpiarFiltros" runat="server"
+                                CssClass="btn btn-secondary btn-sm" CausesValidation="false"
+                                OnClick="btnLimpiarFiltros_Click">
+                    <i class="fa-solid fa-eraser"></i> Limpiar
+                </asp:LinkButton>
+            </div>
         </div>
-
-        <asp:Literal ID="litSinFotos" runat="server"/>
     </div>
 
+    <!-- ══ UpdatePanel SOLO para la Tabla ════ -->
+    <asp:UpdatePanel ID="upFotosGeneral" runat="server" UpdateMode="Conditional">
+        <ContentTemplate>
+            <!-- Lista de fotos general -->
+            <div class="card">
+                <div class="card-title">
+                    <i class="fa-solid fa-images"></i> Todas las fotos guardadas
+                    <span id="spanTotalFotos" style="margin-left:auto;font-size:.79rem;color:#aaa;font-weight:400;">
+                        <asp:Literal ID="litTotalFotos" runat="server"/>
+                    </span>
+                </div>
+
+                <div style="overflow-x:auto;border-radius:12px;">
+                    <asp:Repeater ID="rptFotos" runat="server"
+                                  OnItemCommand="rptFotos_ItemCommand">
+
+                        <HeaderTemplate>
+                            <table class="fotos-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:76px;">FOTO</th>
+                                        <th>PRODUCTO</th>
+                                        <th style="width:80px;">ID FOTO</th>
+                                        <th style="width:90px;">ESTADO</th>
+                                        <th>FECHA SUBIDA</th>
+                                        <th style="width:210px;">ACCIONES</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        </HeaderTemplate>
+
+                        <ItemTemplate>
+                            <tr class="foto-row" data-pro-nombre='<%# HttpUtility.HtmlAttributeEncode(Eval("pro_nombre").ToString()) %>' data-pro-id='<%# Eval("pro_id") %>'>
+                                <!-- Miniatura -->
+                                <td>
+                                    <div class="foto-thumb">
+                                        <img src='<%# ResolveUrl("~/" + Eval("foto_ruta")) %>'
+                                             alt="Foto <%# Eval("foto_id") %>"
+                                             onerror="this.onerror=null;this.src='ImagenProductoFallback.ashx?id=<%# Eval("foto_id") %>';" />
+                                    </div>
+                                </td>
+
+                                <!-- Nombre del producto -->
+                                <td>
+                                    <div class="prod-name-cell">
+                                        <i class="fa-solid fa-box" style="color:var(--accent);font-size:.85rem;"></i>
+                                        <div>
+                                            <%# Eval("pro_nombre") %>
+                                            <span class="sub">ID prod.: <%# Eval("pro_id") %></span>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- ID foto -->
+                                <td style="color:#aaa;font-size:.8rem;">#<%# Eval("foto_id") %></td>
+
+                                <!-- Estado -->
+                                <td>
+                                    <span class='badge <%# (char)Eval("foto_estado") == 'A' ? "badge-activo" : "badge-inactivo" %>'>
+                                        <%# (char)Eval("foto_estado") == 'A' ? "Activa" : "Inactiva" %>
+                                    </span>
+                                </td>
+
+                                <!-- Fecha subida -->
+                                <td style="font-size:.8rem;color:#999;">
+                                    <%# Eval("fecha_subida", "{0:dd/MM/yyyy HH:mm}") %>
+                                </td>
+
+                                <!-- Acciones -->
+                                <td>
+                                    <div class="row-actions">
+                                        <%-- Desactivar / Reactivar segun estado --%>
+                                        <asp:LinkButton runat="server"
+                                            CommandName='<%# Eval("foto_estado").ToString() == "A" ? "Desactivar" : "Reactivar" %>'
+                                            CommandArgument='<%# Eval("foto_id") %>'
+                                            CssClass='<%# "btn btn-sm " + (Eval("foto_estado").ToString() == "A" ? "btn-secondary" : "btn-success") %>'
+                                            OnClientClick='<%# Eval("foto_estado").ToString() == "A"
+                                                ? "return confirm(\"¿Desactivar esta foto?\");"
+                                                : "return confirm(\"¿Reactivar esta foto?\");" %>'>
+                                            <i class='<%# (char)Eval("foto_estado") == 'A' ? "fa-solid fa-eye-slash" : "fa-solid fa-eye" %>'></i>
+                                            <%# (char)Eval("foto_estado") == 'A' ? " Desactivar" : " Reactivar" %>
+                                        </asp:LinkButton>
+
+                                        <%-- Eliminar permanente --%>
+                                        <asp:LinkButton runat="server"
+                                            CommandName="ElimFis"
+                                            CommandArgument='<%# Eval("foto_id") %>'
+                                            CssClass="btn btn-danger btn-sm"
+                                            OnClientClick="return confirm('¿Eliminar esta foto PERMANENTEMENTE?');">
+                                            <i class="fa-solid fa-trash"></i> Eliminar
+                                        </asp:LinkButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </ItemTemplate>
+
+                        <FooterTemplate>
+                                </tbody>
+                            </table>
+                        </FooterTemplate>
+
+                    </asp:Repeater>
+                </div>
+
+                <asp:Literal ID="litSinFotos" runat="server"/>
+            </div>
+
+            <asp:HiddenField ID="hfFiltrosAbiertos" runat="server" Value="0"/>
+        </ContentTemplate>
+        <Triggers>
+            <asp:AsyncPostBackTrigger ControlID="ddlFiltroProducto" EventName="SelectedIndexChanged" />
+            <asp:AsyncPostBackTrigger ControlID="ddlFiltroEstado" EventName="SelectedIndexChanged" />
+            <asp:AsyncPostBackTrigger ControlID="txtFechaDesde" EventName="TextChanged" />
+            <asp:AsyncPostBackTrigger ControlID="txtFechaHasta" EventName="TextChanged" />
+            <asp:AsyncPostBackTrigger ControlID="btnLimpiarFiltros" EventName="Click" />
+        </Triggers>
+    </asp:UpdatePanel>
+
     <script>
-        function previewFotos(input) {
-            var strip = document.getElementById('previewStrip');
-            var count = document.getElementById('previewCount');
-            strip.innerHTML = '';
-
-            var files = Array.from(input.files);
-            var maxBytes = 2 * 1024 * 1024; // 2 MB en bytes
-            var validFiles = [];
-
-            for (var i = 0; i < files.length; i++) {
-                // Validar extensión
-                var ext = files[i].name.split('.').pop().toLowerCase();
-                if (ext !== 'jpg' && ext !== 'jpeg' && ext !== 'png') {
-                    Swal.fire('Formato no válido', 'El archivo "' + files[i].name + '" no es JPG ni PNG.', 'warning');
-                    input.value = ''; // Limpiamos el input
-                    count.textContent = '';
-                    return;
-                }
-                
-                // Validar peso
-                if (files[i].size > maxBytes) {
-                    Swal.fire('Archivo muy pesado', 'La foto "' + files[i].name + '" supera los 2 MB permitidos.', 'warning');
-                    input.value = ''; // Limpiamos el input
-                    count.textContent = '';
-                    return; // Detenemos el preview
-                }
-                validFiles.push(files[i]);
-            }
-
-            count.textContent = validFiles.length + ' foto(s) seleccionada(s)';
-            validFiles.forEach(function (file) {
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    var div = document.createElement('div');
-                    div.className = 'preview-thumb';
-                    div.innerHTML = "<img src='" + e.target.result + "' alt='preview'/>";
-                    strip.appendChild(div);
-                };
-                reader.readAsDataURL(file);
-            });
-        }
-
-        // Drag & drop sobre la zona
+        // Drag & drop sobre la zona de carga (los archivos se asignan al control FileUpload)
         var zone = document.getElementById('uploadZone');
         if (zone) {
             zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('drag-over'); });
@@ -423,8 +515,112 @@
                 e.preventDefault(); zone.classList.remove('drag-over');
                 var inp = zone.querySelector('input[type=file]');
                 inp.files = e.dataTransfer.files;
-                previewFotos(inp);
             });
+        }
+
+        // Búsqueda en vivo predictiva (filtrado cliente ultra-rápido sin postback ni trabas)
+        function inicializarBusquedaPredictivaGeneralFotos() {
+            var input = document.getElementById('<%= txtBuscar.ClientID %>');
+            if (!input) return;
+
+            if (input.dataset.liveSearchBound === '1') {
+                filtrarFotosCliente();
+                return;
+            }
+
+            input.dataset.liveSearchBound = '1';
+            
+            // Filtrado inmediato al escribir
+            input.addEventListener('input', function() {
+                filtrarFotosCliente();
+            });
+
+            // Evitar postback al presionar Enter en el buscador
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    filtrarFotosCliente();
+                }
+            });
+
+            // Filtrar inicialmente por si ya hay texto
+            filtrarFotosCliente();
+        }
+
+        function filtrarFotosCliente() {
+            var input = document.getElementById('<%= txtBuscar.ClientID %>');
+            if (!input) return;
+            var filter = input.value.toLowerCase().trim();
+            
+            var rows = document.querySelectorAll('.foto-row');
+            var visibleCount = 0;
+            
+            rows.forEach(function(row) {
+                var proNombre = row.getAttribute('data-pro-nombre') || '';
+                var proId = row.getAttribute('data-pro-id') || '';
+                var textToSearch = (proNombre + ' ' + proId).toLowerCase();
+                
+                if (textToSearch.indexOf(filter) > -1) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Actualizar contador de fotos mostradas
+            var spanTotal = document.getElementById('spanTotalFotos');
+            if (spanTotal) {
+                spanTotal.textContent = visibleCount + ' foto(s) mostrada(s)';
+            }
+            
+            // Mostrar/ocultar mensaje de vacío si no coincide ninguna fila
+            var emptyState = document.getElementById('clientSinFotos');
+            var tableBody = document.querySelector('.fotos-table tbody');
+            
+            if (visibleCount === 0 && rows.length > 0) {
+                if (!emptyState && tableBody) {
+                    var container = tableBody.parentNode.parentNode; // Contenedor del overflow-x
+                    emptyState = document.createElement('div');
+                    emptyState.id = 'clientSinFotos';
+                    emptyState.className = 'empty-state';
+                    emptyState.innerHTML = "<i class='fa-solid fa-camera-slash'></i>No se encontraron fotos que coincidan con la búsqueda.";
+                    container.appendChild(emptyState);
+                } else if (emptyState) {
+                    emptyState.style.display = '';
+                }
+            } else {
+                if (emptyState) {
+                    emptyState.style.display = 'none';
+                }
+            }
+        }
+
+        // Mostrar / Ocultar filtros avanzados
+        function toggleFiltros() {
+            var p  = document.getElementById('filtrosPanel');
+            var a  = document.getElementById('arrowFilt');
+            var hf = document.getElementById('<%= hfFiltrosAbiertos.ClientID %>');
+            p.classList.toggle('open');
+            var open = p.classList.contains('open');
+            a.innerHTML = open ? '<i class="fa-solid fa-chevron-up"></i>'
+                : '<i class="fa-solid fa-chevron-down"></i>';
+            hf.value = open ? '1' : '0';
+        }
+
+        // Inicializar componentes tras cada postback de UpdatePanel
+        function inicializarComponentesGeneralFotos() {
+            if (document.getElementById('<%= hfFiltrosAbiertos.ClientID %>').value === '1') {
+                document.getElementById('filtrosPanel').classList.add('open');
+                document.getElementById('arrowFilt').innerHTML = '<i class="fa-solid fa-chevron-up"></i>';
+            }
+            inicializarBusquedaPredictivaGeneralFotos();
+        }
+
+        window.addEventListener('DOMContentLoaded', inicializarComponentesGeneralFotos);
+
+        if (typeof Sys !== 'undefined') {
+            Sys.WebForms.PageRequestManager.getInstance().add_endRequest(inicializarComponentesGeneralFotos);
         }
     </script>
 </asp:Content>

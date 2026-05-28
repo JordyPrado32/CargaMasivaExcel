@@ -20,26 +20,53 @@ namespace Monolito4bm
         protected global::System.Web.UI.WebControls.FileUpload  fuFotos;
         protected global::System.Web.UI.WebControls.FileUpload  fuExcel;
         protected global::System.Web.UI.WebControls.DropDownList ddlProducto;
+        protected global::System.Web.UI.WebControls.DropDownList ddlFiltroProducto;
+        protected global::System.Web.UI.WebControls.DropDownList ddlFiltroEstado;
+        protected global::System.Web.UI.WebControls.TextBox      txtBuscar;
+        protected global::System.Web.UI.WebControls.TextBox      txtFechaDesde;
+        protected global::System.Web.UI.WebControls.TextBox      txtFechaHasta;
         protected global::System.Web.UI.WebControls.Button      btnSubir;
+        protected global::System.Web.UI.WebControls.Button      btnPrevisualizar;
         protected global::System.Web.UI.WebControls.Button      btnDescargarFormato;
         protected global::System.Web.UI.WebControls.Button      btnCargarExcel;
+        protected global::System.Web.UI.WebControls.LinkButton   btnLimpiarFiltros;
         protected global::System.Web.UI.WebControls.Repeater    rptFotos;
+        protected global::System.Web.UI.WebControls.Repeater    rptFotosPreview;
+        protected global::System.Web.UI.WebControls.Literal     lblFotosPreviewInfo;
+        protected global::System.Web.UI.WebControls.HiddenField hfFiltrosAbiertos;
 
-        // Carpeta donde se guardan las fotos de productos
         private const string CARPETA_VIRTUAL = "~/Uploads/Productos/";
+        private const string SessionFotosKey = "GeneralFotosPreview";
+
+        // Clase para representar la foto cargada temporalmente en memoria
+        [Serializable]
+        private class FotoTemporal
+        {
+            public string Id { get; set; }
+            public string NombreArchivo { get; set; }
+            public string ContentType { get; set; }
+            public byte[] Contenido { get; set; }
+
+            public string PreviewUrl
+            {
+                get { return "data:" + ContentType + ";base64," + Convert.ToBase64String(Contenido); }
+            }
+        }
 
         // ── Page Load ─────────────────────────────────────────────
         protected void Page_Load(object sender, EventArgs e)
         {
             if (!IsPostBack)
             {
-                CargarProductosDropdown();
+                CargarProductosDropdowns();
                 CargarFotos();
+                LimpiarFotosTemporales();
+                BindFotosPreview();
             }
         }
 
-        // ── Cargar productos en el Dropdown ────────────────────────
-        private void CargarProductosDropdown()
+        // ── Cargar productos en los Dropdowns (Subida y Filtro) ──────
+        private void CargarProductosDropdowns()
         {
             try
             {
@@ -48,12 +75,19 @@ namespace Monolito4bm
                     .OrderBy(p => p.pro_nombre)
                     .ToList();
 
+                // 1. Dropdown de subida individual/múltiple
                 ddlProducto.DataSource = productos;
                 ddlProducto.DataTextField = "pro_nombre";
                 ddlProducto.DataValueField = "pro_id";
                 ddlProducto.DataBind();
-
                 ddlProducto.Items.Insert(0, new ListItem("-- Seleccione un producto --", ""));
+
+                // 2. Dropdown de filtros avanzados
+                ddlFiltroProducto.DataSource = productos;
+                ddlFiltroProducto.DataTextField = "pro_nombre";
+                ddlFiltroProducto.DataValueField = "pro_id";
+                ddlFiltroProducto.DataBind();
+                ddlFiltroProducto.Items.Insert(0, new ListItem("Todos los productos", ""));
             }
             catch (Exception ex)
             {
@@ -61,30 +95,73 @@ namespace Monolito4bm
             }
         }
 
-        // ── Cargar fotos en el Repeater (Consulta directa y auto-contenida) ─
+        // ── Cargar fotos en el Repeater con Filtros Aplicados ─────────
         private void CargarFotos()
         {
             try
             {
                 using (var dc = new MonolitoDataContext())
                 {
-                    var query = (from f in dc.tbl_pro_fotos
-                                 orderby f.fecha_subida descending
-                                 select new
-                                 {
-                                     f.foto_id,
-                                     f.pro_id,
-                                     f.foto_ruta,
-                                     f.foto_estado,
-                                     f.fecha_subida,
-                                     pro_nombre = f.tbl_producto != null ? f.tbl_producto.pro_nombre : "Sin Producto"
-                                 }).ToList();
+                    // Consulta base sobre tbl_pro_fotos
+                    var query = from f in dc.tbl_pro_fotos
+                                select f;
 
-                    litTotalFotos.Text = $"{query.Count} foto(s) registrada(s) en total";
-
-                    if (query.Any())
+                    // 1. Filtro por búsqueda predictiva (Búsqueda por nombre del producto o ruta)
+                    string busqueda = txtBuscar.Text.Trim();
+                    if (!string.IsNullOrEmpty(busqueda))
                     {
-                        rptFotos.DataSource = query;
+                        query = query.Where(f => f.tbl_producto.pro_nombre.Contains(busqueda) || f.foto_ruta.Contains(busqueda));
+                    }
+
+                    // 2. Filtro por producto seleccionado
+                    int filtroProId;
+                    if (int.TryParse(ddlFiltroProducto.SelectedValue, out filtroProId) && filtroProId > 0)
+                    {
+                        query = query.Where(f => f.pro_id == filtroProId);
+                    }
+
+                    // 3. Filtro por estado de foto
+                    string filtroEstado = ddlFiltroEstado.SelectedValue;
+                    if (!string.IsNullOrEmpty(filtroEstado))
+                    {
+                        char est = filtroEstado[0];
+                        query = query.Where(f => f.foto_estado == est);
+                    }
+
+                    // 4. Filtro por rango de fecha de subida (Desde)
+                    DateTime fechaDesde;
+                    if (DateTime.TryParse(txtFechaDesde.Text, out fechaDesde))
+                    {
+                        query = query.Where(f => f.fecha_subida >= fechaDesde.Date);
+                    }
+
+                    // 5. Filtro por rango de fecha de subida (Hasta)
+                    DateTime fechaHasta;
+                    if (DateTime.TryParse(txtFechaHasta.Text, out fechaHasta))
+                    {
+                        DateTime limiteHasta = fechaHasta.Date.AddDays(1);
+                        query = query.Where(f => f.fecha_subida < limiteHasta);
+                    }
+
+                    // Proyectamos a objetos anónimos ordenados de forma descendente por fecha de subida
+                    var listado = query
+                        .OrderByDescending(f => f.fecha_subida)
+                        .Select(f => new
+                        {
+                            f.foto_id,
+                            f.pro_id,
+                            f.foto_ruta,
+                            f.foto_estado,
+                            f.fecha_subida,
+                            pro_nombre = f.tbl_producto != null ? f.tbl_producto.pro_nombre : "Sin Producto"
+                        })
+                        .ToList();
+
+                    litTotalFotos.Text = $"{listado.Count} foto(s) encontrada(s)";
+
+                    if (listado.Any())
+                    {
+                        rptFotos.DataSource = listado;
                         rptFotos.DataBind();
                         litSinFotos.Text = string.Empty;
                     }
@@ -95,20 +172,124 @@ namespace Monolito4bm
                         litSinFotos.Text =
                             "<div class='empty-state'>" +
                             "<i class='fa-solid fa-camera-slash'></i>" +
-                            "No se encontraron fotos registradas en el sistema.</div>";
+                            "No se encontraron fotos con los filtros aplicados.</div>";
                     }
                 }
             }
             catch (Exception ex)
             {
-                MostrarMensaje("Error al cargar las fotos: " + ex.Message, false);
+                MostrarMensaje("Error al filtrar las fotos: " + ex.Message, false);
             }
         }
 
-        // ── Subir fotos individual o múltiple para el producto seleccionado ──
+        // ── Gestión de Fotos Temporales en Session ─────────────────────
+        private List<FotoTemporal> ObtenerFotosTemporales()
+        {
+            return Session[SessionFotosKey] as List<FotoTemporal> ?? new List<FotoTemporal>();
+        }
+
+        private void GuardarFotosTemporales(List<FotoTemporal> fotos)
+        {
+            Session[SessionFotosKey] = fotos;
+        }
+
+        private void LimpiarFotosTemporales()
+        {
+            Session.Remove(SessionFotosKey);
+        }
+
+        private void BindFotosPreview()
+        {
+            var fotos = ObtenerFotosTemporales();
+            rptFotosPreview.DataSource = fotos;
+            rptFotosPreview.DataBind();
+
+            if (fotos.Count > 0)
+            {
+                lblFotosPreviewInfo.Text = $"Fotos preparadas en la previsualización: {fotos.Count}. Presione 'Subir fotos' para guardarlas en la base de datos.";
+            }
+            else
+            {
+                lblFotosPreviewInfo.Text = "No hay fotos en la previsualización temporal.";
+            }
+        }
+
+        // ── Agregar archivos cargados a la previsualización temporal (C#) ──
+        protected void btnPrevisualizar_Click(object sender, EventArgs e)
+        {
+            int proId;
+            if (string.IsNullOrWhiteSpace(ddlProducto.SelectedValue) || !int.TryParse(ddlProducto.SelectedValue, out proId))
+            {
+                MostrarMensaje("Debe seleccionar un producto antes de agregar fotos a la previsualización.", false);
+                return;
+            }
+
+            if (!fuFotos.HasFiles)
+            {
+                MostrarMensaje("Seleccione al menos un archivo de imagen para previsualizar.", false);
+                return;
+            }
+
+            var fotosActuales = ObtenerFotosTemporales();
+            var nuevasFotos = new List<FotoTemporal>();
+
+            foreach (HttpPostedFile file in fuFotos.PostedFiles)
+            {
+                if (file.ContentLength == 0) continue;
+
+                // Validar peso de 2MB
+                if (file.ContentLength > 2 * 1024 * 1024)
+                {
+                    MostrarMensaje($"El archivo '{file.FileName}' supera el límite de 2 MB.", false);
+                    return;
+                }
+
+                // Validar extensión
+                string ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                if (ext != ".jpg" && ext != ".jpeg" && ext != ".png")
+                {
+                    MostrarMensaje($"El archivo '{file.FileName}' no es JPG ni PNG.", false);
+                    return;
+                }
+
+                using (var reader = new BinaryReader(file.InputStream))
+                {
+                    byte[] contenido = reader.ReadBytes(file.ContentLength);
+                    nuevasFotos.Add(new FotoTemporal
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        NombreArchivo = Path.GetFileName(file.FileName),
+                        ContentType = file.ContentType,
+                        Contenido = contenido
+                    });
+                }
+            }
+
+            fotosActuales.AddRange(nuevasFotos);
+            GuardarFotosTemporales(fotosActuales);
+            BindFotosPreview();
+        }
+
+        // ── Handler para comandos de la previsualización (C# - Botón X) ──
+        protected void rptFotosPreview_ItemCommand(object source, RepeaterCommandEventArgs e)
+        {
+            if (e.CommandName == "Eliminar")
+            {
+                string id = e.CommandArgument.ToString();
+                var fotos = ObtenerFotosTemporales();
+                var fotoAEliminar = fotos.FirstOrDefault(f => f.Id == id);
+                if (fotoAEliminar != null)
+                {
+                    fotos.Remove(fotoAEliminar);
+                    GuardarFotosTemporales(fotos);
+                }
+                BindFotosPreview();
+            }
+        }
+
+        // ── Subir fotos definitivas desde la previsualización temporal ──
         protected void btnSubir_Click(object sender, EventArgs e)
         {
-            // Validar selección de producto
             int proId;
             if (string.IsNullOrWhiteSpace(ddlProducto.SelectedValue) || !int.TryParse(ddlProducto.SelectedValue, out proId))
             {
@@ -116,55 +297,13 @@ namespace Monolito4bm
                 return;
             }
 
-            // Validar existencia de archivos
-            if (!fuFotos.HasFiles)
+            var fotosTemporales = ObtenerFotosTemporales();
+            if (!fotosTemporales.Any())
             {
-                MostrarMensaje("Seleccione al menos un archivo de imagen.", false);
+                MostrarMensaje("No hay fotos en la previsualización temporal. Cargue imágenes y presione 'Agregar a Previsualización'.", false);
                 return;
             }
 
-            // Filtrar archivos válidos en el backend (peso de 2MB por foto y tipo de archivo)
-            var archivosValidos = new List<HttpPostedFile>();
-            var errores = new List<string>();
-
-            foreach (HttpPostedFile file in fuFotos.PostedFiles)
-            {
-                if (file.ContentLength == 0) continue;
-
-                // Validar peso de 2MB (2 * 1024 * 1024 bytes)
-                if (file.ContentLength > 2 * 1024 * 1024)
-                {
-                    errores.Add($"El archivo '{file.FileName}' supera el límite de 2 MB.");
-                    continue;
-                }
-
-                // Validar tipo de archivo (solo JPEG/JPG y PNG)
-                string ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-                if (ext != ".jpg" && ext != ".jpeg" && ext != ".png")
-                {
-                    errores.Add($"El archivo '{file.FileName}' no es una imagen permitida (solo JPG o PNG).");
-                    continue;
-                }
-
-                archivosValidos.Add(file);
-            }
-
-            // Si hay errores, mostrar el primero
-            if (errores.Any())
-            {
-                MostrarMensaje(errores.First(), false);
-                CargarFotos();
-                return;
-            }
-
-            if (!archivosValidos.Any())
-            {
-                MostrarMensaje("No se encontraron imágenes válidas para subir.", false);
-                CargarFotos();
-                return;
-            }
-
-            // Crear carpeta física si no existe
             string carpetaFisica = Server.MapPath(CARPETA_VIRTUAL);
             if (!Directory.Exists(carpetaFisica))
             {
@@ -173,18 +312,18 @@ namespace Monolito4bm
 
             try
             {
-                var nuevasFotos = archivosValidos.Select(f =>
+                var nuevasFotos = fotosTemporales.Select(f =>
                 {
-                    string ext = Path.GetExtension(f.FileName).ToLowerInvariant();
+                    string ext = Path.GetExtension(f.NombreArchivo).ToLowerInvariant();
                     string archivo = $"prod_{proId}_{Guid.NewGuid():N}{ext}";
                     string rutaFisica = Path.Combine(carpetaFisica, archivo);
-                    f.SaveAs(rutaFisica);
-                    byte[] contenido = File.ReadAllBytes(rutaFisica);
+                    
+                    File.WriteAllBytes(rutaFisica, f.Contenido);
 
                     return new tbl_pro_fotos
                     {
                         pro_id = proId,
-                        foto_bit = new Binary(contenido),
+                        foto_bit = new Binary(f.Contenido),
                         foto_ruta = $"Uploads/Productos/{archivo}",
                         foto_estado = 'A',
                         fecha_subida = DateTime.Now
@@ -192,17 +331,41 @@ namespace Monolito4bm
                 }).ToList();
 
                 CN_tbl_pro_fotos.GuardarFotos(nuevasFotos);
-                MostrarMensaje($"{nuevasFotos.Count} foto(s) subida(s) correctamente para el producto seleccionado.", true);
+                
+                LimpiarFotosTemporales();
+                BindFotosPreview();
+                ddlProducto.SelectedIndex = 0;
+
+                MostrarMensaje($"{nuevasFotos.Count} foto(s) guardada(s) correctamente en la base de datos.", true);
             }
             catch (Exception ex)
             {
-                MostrarMensaje("Error al guardar las fotos: " + ex.Message, false);
+                MostrarMensaje("Error al guardar las fotos en la base de datos: " + ex.Message, false);
             }
 
             CargarFotos();
         }
 
-        // ── Descargar Formato Excel ───────────────────────────────
+        // ── Handler para cambios en filtros ──────────────────────────
+        protected void Filtros_Changed(object sender, EventArgs e)
+        {
+            CargarFotos();
+        }
+
+        // ── Handler para limpiar filtros ─────────────────────────────
+        protected void btnLimpiarFiltros_Click(object sender, EventArgs e)
+        {
+            txtBuscar.Text = string.Empty;
+            ddlFiltroProducto.SelectedIndex = 0;
+            ddlFiltroEstado.SelectedIndex = 0;
+            txtFechaDesde.Text = string.Empty;
+            txtFechaHasta.Text = string.Empty;
+            hfFiltrosAbiertos.Value = "0";
+
+            CargarFotos();
+        }
+
+        // ── Descargar Formato Excel (Plantilla CSV) ──────────────────
         protected void btnDescargarFormato_Click(object sender, EventArgs e)
         {
             try
@@ -214,7 +377,6 @@ namespace Monolito4bm
                 Response.ContentType = "text/csv";
                 Response.ContentEncoding = System.Text.Encoding.UTF8;
 
-                // Cabeceras y fila de ejemplo
                 Response.Write("ID_Producto,Nombre_Archivo\n");
                 Response.Write("1,nombre_imagen_ejemplo.jpg\n");
                 Response.Write("2,otra_imagen_ejemplo.png\n");
@@ -231,7 +393,7 @@ namespace Monolito4bm
             }
         }
 
-        // ── Cargar Excel ──────────────────────────────────────────
+        // ── Cargar Excel (Validaciones) ─────────────────────────────
         protected void btnCargarExcel_Click(object sender, EventArgs e)
         {
             if (!fuExcel.HasFile)
@@ -253,7 +415,6 @@ namespace Monolito4bm
                 return;
             }
 
-            // Indicamos que el archivo de carga fue validado con éxito y se conectará en base a las adaptaciones de SQL del usuario
             string script = $"Swal.fire({{ " +
                            $"title: 'Excel Validado con éxito', " +
                            $"text: 'El archivo \"{fuExcel.FileName}\" fue cargado y validado. Conectando con las modificaciones de SQL de la base de datos...', " +
