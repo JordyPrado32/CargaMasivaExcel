@@ -129,6 +129,7 @@
     <Compile Include="CN_tbl_proveedor.cs" />
     <Compile Include="CN_tbl_pro_fotos.cs" />
     <Compile Include="JuegoService.cs" />
+    <Compile Include="ProductoCargaMasivaSupport.cs" />
     <Compile Include="ProveedorCargaMasivaSupport.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="tbl_foto.cs" />
