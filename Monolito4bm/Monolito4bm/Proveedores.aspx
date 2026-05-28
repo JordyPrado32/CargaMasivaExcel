@@ -198,6 +198,23 @@
 
 .grid-wrapper { overflow-x:auto; border-radius:14px; }
 .prov-grid { width:100%; border-collapse:collapse; font-size:.88rem; }
+.preview-grid { width:100%; border-collapse:collapse; font-size:.85rem; }
+.preview-grid thead tr { background:linear-gradient(90deg,#0f172a,#1d4ed8); color:#fff; }
+.preview-grid thead th,
+.preview-grid tbody td { padding:10px 12px; text-align:left; border-bottom:1px solid rgba(148,163,184,.18); }
+.preview-grid tbody tr:nth-child(even) { background:rgba(248,250,252,.72); }
+.massive-layout { display:grid; grid-template-columns:1.2fr .8fr; gap:18px; align-items:start; }
+.upload-drop {
+  border:1.5px dashed rgba(37,99,235,.35); border-radius:18px; padding:20px;
+  background:linear-gradient(180deg, rgba(239,246,255,.9), rgba(255,255,255,.95));
+}
+.upload-drop small { display:block; color:#64748b; margin-top:8px; }
+.preview-shell { border:1px solid rgba(148,163,184,.18); border-radius:14px; overflow:hidden; background:rgba(255,255,255,.92); }
+.preview-meta { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:12px 0 0; font-size:.8rem; color:#64748b; }
+.empty-preview {
+  padding:28px; text-align:center; color:#94a3b8; border:1px dashed rgba(148,163,184,.25);
+  border-radius:14px; background:rgba(248,250,252,.82);
+}
 .prov-grid thead tr { background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#fff; }
 .prov-grid thead th { padding:12px 15px; text-align:left; font-size:.79rem; font-weight:700; letter-spacing:.5px; white-space:nowrap; }
 .prov-grid thead th:first-child { border-radius:13px 0 0 0; }
@@ -254,6 +271,7 @@
 @media(max-width:900px){
   .dashboard-card.wide { grid-column:span 1; }
   .summary-layout { grid-template-columns:1fr; }
+  .massive-layout { grid-template-columns:1fr; }
 }
 
 @media(max-width:600px){
@@ -277,6 +295,86 @@
   </div>
 
   <asp:Literal ID="litMensaje" runat="server"/>
+
+  <div class="card">
+    <div class="card-title">
+      <i class="fa-solid fa-file-arrow-up"></i> Carga Masiva Excel
+    </div>
+
+    <div class="massive-layout">
+      <div>
+        <div class="upload-drop">
+          <div class="fg" style="min-width:100%">
+            <label>Seleccionar archivo</label>
+            <asp:FileUpload ID="fuCargaMasiva" runat="server" CssClass="form-control" />
+            <small>Formatos permitidos: .csv, .xlsx y .xls. La primera fila debe tener encabezados.</small>
+          </div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+            <asp:LinkButton ID="btnPrevisualizarCarga" runat="server"
+                            CssClass="btn btn-primary" CausesValidation="false"
+                            OnClick="btnPrevisualizarCarga_Click">
+              <i class="fa-solid fa-eye"></i> Visualizar archivo
+            </asp:LinkButton>
+
+            <asp:LinkButton ID="btnLimpiarCarga" runat="server"
+                            CssClass="btn btn-secondary" CausesValidation="false"
+                            OnClick="btnLimpiarCarga_Click">
+              <i class="fa-solid fa-broom"></i> Limpiar carga
+            </asp:LinkButton>
+          </div>
+        </div>
+
+        <div class="preview-meta">
+          <span><asp:Literal ID="litArchivoCarga" runat="server" Text="Sin archivo cargado." /></span>
+          <span><asp:Literal ID="litResumenCarga" runat="server" Text="Aun no hay vista previa." /></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="fg">
+          <label>Tipo de insercion</label>
+          <asp:DropDownList ID="ddlTipoInsercionMasiva" runat="server" CssClass="form-control">
+            <asp:ListItem Value="1" Text="Anadir sin borrar"/>
+            <asp:ListItem Value="2" Text="Borrar todo y volver a cargar"/>
+          </asp:DropDownList>
+          <small style="color:#64748b;margin-top:8px;display:block;">
+            La segunda opcion reinicia los IDs desde 1, limpia proveedores y deja que SQL genere el autoincremento. Luego reasigna productos con la nueva secuencia 1..n.
+          </small>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+          <asp:LinkButton ID="btnProcesarCargaMasiva" runat="server"
+                          CssClass="btn btn-success" CausesValidation="false"
+                          OnClick="btnProcesarCargaMasiva_Click">
+            <i class="fa-solid fa-database"></i> Procesar carga masiva
+          </asp:LinkButton>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <asp:PlaceHolder ID="phPreviewVacia" runat="server">
+        <div class="empty-preview">
+          <i class="fa-solid fa-table-list" style="font-size:1.6rem;display:block;margin-bottom:10px;"></i>
+          Selecciona un archivo y presiona "Visualizar archivo" para revisar los datos antes de importarlos.
+        </div>
+      </asp:PlaceHolder>
+
+      <div class="preview-shell">
+        <asp:GridView ID="gvPreviewCarga" runat="server"
+                      AutoGenerateColumns="false" CssClass="preview-grid"
+                      GridLines="None" Visible="false">
+          <Columns>
+            <asp:BoundField DataField="NumeroFilaArchivo" HeaderText="FILA" />
+            <asp:BoundField DataField="ProveedorIdTexto" HeaderText="ID" />
+            <asp:BoundField DataField="NombreProveedor" HeaderText="NOMBRE" />
+            <asp:BoundField DataField="EstadoTexto" HeaderText="ESTADO" />
+          </Columns>
+        </asp:GridView>
+      </div>
+    </div>
+  </div>
 
   <div class="card">
     <div class="search-bar">

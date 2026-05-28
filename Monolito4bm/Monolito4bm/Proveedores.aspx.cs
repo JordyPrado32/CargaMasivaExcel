@@ -3,6 +3,7 @@ using Capa_Negocios;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Web;
@@ -15,6 +16,15 @@ namespace Monolito4bm
     public partial class Proveedores : System.Web.UI.Page
     {
         protected global::System.Web.UI.WebControls.Literal litMensaje;
+        protected global::System.Web.UI.WebControls.FileUpload fuCargaMasiva;
+        protected global::System.Web.UI.WebControls.LinkButton btnPrevisualizarCarga;
+        protected global::System.Web.UI.WebControls.LinkButton btnLimpiarCarga;
+        protected global::System.Web.UI.WebControls.Literal litArchivoCarga;
+        protected global::System.Web.UI.WebControls.Literal litResumenCarga;
+        protected global::System.Web.UI.WebControls.DropDownList ddlTipoInsercionMasiva;
+        protected global::System.Web.UI.WebControls.LinkButton btnProcesarCargaMasiva;
+        protected global::System.Web.UI.WebControls.PlaceHolder phPreviewVacia;
+        protected global::System.Web.UI.WebControls.GridView gvPreviewCarga;
         protected global::System.Web.UI.WebControls.Literal litTituloForm;
         protected global::System.Web.UI.WebControls.HiddenField hfProvId;
         protected global::System.Web.UI.WebControls.TextBox txtNombre;
@@ -37,6 +47,8 @@ namespace Monolito4bm
         protected global::System.Web.UI.WebControls.HiddenField hfResumenProveedoresJson;
 
         private const int POR_PAGINA = 5;
+        private const int MAX_FILAS_PREVIEW = 20;
+        private const string SessionCargaMasivaKey = "ProveedorCargaMasivaRows";
         private Dictionary<int, List<ProductCarouselSlide>> ProviderSlidesMap
         {
             get
@@ -73,9 +85,12 @@ namespace Monolito4bm
 
         protected void Page_Load(object sender, EventArgs e)
         {
+            ConfigurarCargaMasiva();
+
             if (!IsPostBack)
             {
                 CargarGrid();
+                LimpiarPreviewCarga();
             }
         }
 
@@ -387,6 +402,80 @@ namespace Monolito4bm
             litTituloForm.Text = "Nuevo Proveedor";
         }
 
+        protected void btnPrevisualizarCarga_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (!fuCargaMasiva.HasFile)
+                {
+                    throw new Exception("Primero debes seleccionar un archivo para la carga masiva.");
+                }
+
+                ValidarArchivoCarga(fuCargaMasiva.FileName);
+
+                byte[] contenido;
+                using (var memory = new MemoryStream())
+                {
+                    fuCargaMasiva.PostedFile.InputStream.CopyTo(memory);
+                    contenido = memory.ToArray();
+                }
+
+                FilasCargaMasiva = CN_tbl_proveedor.LeerArchivoCargaMasiva(contenido, fuCargaMasiva.FileName);
+                BindPreviewCarga();
+                MostrarMensaje($"Vista previa generada correctamente. Se detectaron {FilasCargaMasiva.Count} fila(s).", true);
+            }
+            catch (Exception ex)
+            {
+                LimpiarPreviewCarga();
+                MostrarMensaje(ex.Message, false);
+            }
+        }
+
+        protected void btnProcesarCargaMasiva_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var filas = FilasCargaMasiva;
+                if (filas == null || !filas.Any())
+                {
+                    throw new Exception("No hay una vista previa lista. Carga y visualiza el archivo antes de procesarlo.");
+                }
+
+                var tipo = (TipoInsercionProveedor)ObtenerEnteroSeguro(ddlTipoInsercionMasiva.SelectedValue, 1);
+                var resultado = CN_tbl_proveedor.ProcesarCargaMasiva(filas, tipo);
+
+                var mensaje = new StringBuilder();
+                mensaje.Append($"Carga masiva completada. Filas: {resultado.FilasProcesadas}. ");
+                mensaje.Append($"Insertados: {resultado.Insertados}. ");
+                mensaje.Append($"Actualizados: {resultado.Actualizados}.");
+
+                if (resultado.Reactivados > 0)
+                {
+                    mensaje.Append($" Reactivados: {resultado.Reactivados}.");
+                }
+
+                if (tipo == TipoInsercionProveedor.ReemplazarTodo)
+                {
+                    mensaje.Append($" Productos reasignados: {resultado.ProductosReasignados}.");
+                    mensaje.Append($" Productos que quedaron Sin proveedor: {resultado.ProductosSinProveedor}.");
+                }
+
+                LimpiarPreviewCarga();
+                hfPagina.Value = "1";
+                CargarGrid();
+                MostrarMensaje(mensaje.ToString(), true);
+            }
+            catch (Exception ex)
+            {
+                MostrarMensaje(ex.Message, false);
+            }
+        }
+
+        protected void btnLimpiarCarga_Click(object sender, EventArgs e)
+        {
+            LimpiarPreviewCarga();
+        }
+
         private void MostrarMensaje(string texto, bool exito)
         {
             string icon = exito ? "success" : "error";
@@ -454,6 +543,68 @@ namespace Monolito4bm
 
             html.Append("</div>");
             return html.ToString();
+        }
+
+        private List<ProveedorCargaFila> FilasCargaMasiva
+        {
+            get { return Session[SessionCargaMasivaKey] as List<ProveedorCargaFila>; }
+            set { Session[SessionCargaMasivaKey] = value; }
+        }
+
+        private void ConfigurarCargaMasiva()
+        {
+            if (fuCargaMasiva != null)
+            {
+                fuCargaMasiva.Attributes["accept"] = ".csv,.xlsx,.xls";
+            }
+        }
+
+        private void ValidarArchivoCarga(string nombreArchivo)
+        {
+            string extension = Path.GetExtension(nombreArchivo ?? string.Empty).ToLowerInvariant();
+            var permitidos = new[] { ".csv", ".xlsx", ".xls" };
+
+            if (!permitidos.Contains(extension))
+            {
+                throw new Exception("Archivo no permitido. Solo se aceptan archivos .csv, .xlsx y .xls.");
+            }
+        }
+
+        private void BindPreviewCarga()
+        {
+            var filas = FilasCargaMasiva ?? new List<ProveedorCargaFila>();
+            var preview = filas
+                .Take(MAX_FILAS_PREVIEW)
+                .Select(f => new
+                {
+                    f.NumeroFilaArchivo,
+                    ProveedorIdTexto = f.ProveedorId.HasValue ? f.ProveedorId.Value.ToString() : "(nuevo)",
+                    f.NombreProveedor,
+                    EstadoTexto = f.EstadoProveedor == 'I' ? "Inactivo" : "Activo"
+                })
+                .ToList();
+
+            gvPreviewCarga.Visible = preview.Any();
+            gvPreviewCarga.DataSource = preview;
+            gvPreviewCarga.DataBind();
+            phPreviewVacia.Visible = !preview.Any();
+
+            litArchivoCarga.Text = $"Archivo listo: {HttpUtility.HtmlEncode(fuCargaMasiva.FileName)}";
+            litResumenCarga.Text = filas.Count > MAX_FILAS_PREVIEW
+                ? $"Mostrando {MAX_FILAS_PREVIEW} de {filas.Count} fila(s)."
+                : $"Mostrando {filas.Count} fila(s).";
+        }
+
+        private void LimpiarPreviewCarga()
+        {
+            FilasCargaMasiva = null;
+            gvPreviewCarga.Visible = false;
+            gvPreviewCarga.DataSource = null;
+            gvPreviewCarga.DataBind();
+            phPreviewVacia.Visible = true;
+            litArchivoCarga.Text = "Sin archivo cargado.";
+            litResumenCarga.Text = "Aun no hay vista previa.";
+            ddlTipoInsercionMasiva.SelectedValue = "1";
         }
     }
 }
