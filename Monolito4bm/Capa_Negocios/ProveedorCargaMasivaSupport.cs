@@ -258,30 +258,39 @@ namespace Capa_Negocios
                     continue;
                 }
 
-                int? proveedorId = null;
-                if (!string.IsNullOrWhiteSpace(idTexto))
+                try
                 {
-                    int id;
-                    if (!int.TryParse(idTexto, NumberStyles.Integer, CultureInfo.InvariantCulture, out id) || id <= 0)
+                    int? proveedorId = null;
+                    if (!string.IsNullOrWhiteSpace(idTexto))
                     {
-                        throw new Exception($"La fila {i + 1} tiene un ID inv\u00e1lido: '{idTexto}'.");
+                        int id;
+                        if (!int.TryParse(idTexto, NumberStyles.Integer, CultureInfo.InvariantCulture, out id) || id <= 0)
+                        {
+                            throw new Exception($"El ID de proveedor '{idTexto}' no es un número entero positivo válido.");
+                        }
+
+                        proveedorId = id;
                     }
 
-                    proveedorId = id;
-                }
+                    if (string.IsNullOrWhiteSpace(nombre))
+                    {
+                        throw new Exception("El nombre del proveedor es obligatorio y no puede estar vacío.");
+                    }
 
-                if (string.IsNullOrWhiteSpace(nombre))
-                {
-                    throw new Exception($"La fila {i + 1} no tiene nombre de proveedor.");
-                }
+                    char estado = ParsearEstado(estadoTexto);
 
-                resultado.Add(new ProveedorCargaFila
+                    resultado.Add(new ProveedorCargaFila
+                    {
+                        NumeroFilaArchivo = i + 1,
+                        ProveedorId = proveedorId,
+                        NombreProveedor = nombre,
+                        EstadoProveedor = estado
+                    });
+                }
+                catch (Exception ex)
                 {
-                    NumeroFilaArchivo = i + 1,
-                    ProveedorId = proveedorId,
-                    NombreProveedor = nombre,
-                    EstadoProveedor = ParsearEstado(estadoTexto)
-                });
+                    throw new Exception($"Error en la fila {i + 1}: {ex.Message}");
+                }
             }
 
             if (!resultado.Any())

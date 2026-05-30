@@ -189,6 +189,9 @@
     <Content Include="Agents.md" />
     <Content Include=".agent\appsettings.json" />
     <Content Include="appsettings.json" />
+    <Content Include="Plantillas\Fotos.xlsx" />
+    <Content Include="Plantillas\productos.xlsx" />
+    <Content Include="Plantillas\proveedores.xlsx" />
     <None Include="Scripts\jquery-3.7.0.intellisense.js" />
     <Content Include="Scripts\jquery-3.7.0.js" />
     <Content Include="Scripts\jquery-3.7.0.min.js" />

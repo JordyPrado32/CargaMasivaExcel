@@ -372,6 +372,10 @@
             <small>Formatos permitidos: .csv, .xlsx y .xls. Encabezados sugeridos: nombre, cantidad, precio, prov_id, estado.</small>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+            <asp:LinkButton ID="btnDescargarFormato" runat="server" CssClass="btn btn-secondary"
+                            CausesValidation="false" OnClick="btnDescargarFormato_Click">
+              <i class="fa-solid fa-download"></i> Descargar Formato
+            </asp:LinkButton>
             <asp:LinkButton ID="btnPrevisualizarCarga" runat="server" CssClass="btn btn-primary"
                             CausesValidation="false" OnClick="btnPrevisualizarCarga_Click">
               <i class="fa-solid fa-eye"></i> Visualizar archivo

@@ -365,23 +365,25 @@ namespace Monolito4bm
             CargarFotos();
         }
 
-        // ── Descargar Formato Excel (Plantilla CSV) ──────────────────
+        // ── Descargar Formato Excel (Plantilla XLSX Real) ────────────
         protected void btnDescargarFormato_Click(object sender, EventArgs e)
         {
             try
             {
-                Response.Clear();
-                Response.Buffer = true;
-                Response.AddHeader("content-disposition", "attachment;filename=PlantillaCargaFotos.csv");
-                Response.Charset = "UTF-8";
-                Response.ContentType = "text/csv";
-                Response.ContentEncoding = System.Text.Encoding.UTF8;
-
-                Response.Write("ID_Producto,Nombre_Archivo\n");
-                Response.Write("1,nombre_imagen_ejemplo.jpg\n");
-                Response.Write("2,otra_imagen_ejemplo.png\n");
-
-                Response.End();
+                string path = Server.MapPath("~/Plantillas/Fotos.xlsx");
+                if (System.IO.File.Exists(path))
+                {
+                    Response.Clear();
+                    Response.Buffer = true;
+                    Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                    Response.AddHeader("content-disposition", "attachment;filename=Fotos.xlsx");
+                    Response.WriteFile(path);
+                    Response.End();
+                }
+                else
+                {
+                    throw new Exception("El archivo de plantilla 'Fotos.xlsx' no existe en el servidor.");
+                }
             }
             catch (System.Threading.ThreadAbortException)
             {

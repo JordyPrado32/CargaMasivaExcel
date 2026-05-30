@@ -121,21 +121,45 @@ namespace Capa_Negocios
                     continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(nombre))
+                try
                 {
-                    throw new Exception($"La fila {i + 1} no tiene nombre de producto.");
-                }
+                    if (string.IsNullOrWhiteSpace(nombre))
+                    {
+                        throw new Exception("El nombre del producto es obligatorio y no puede estar vacío.");
+                    }
 
-                resultado.Add(new ProductoCargaFila
+                    int? productoId = ParsearEnteroOpcional(idTexto, $"El ID de producto '{idTexto}' no es un número entero positivo válido.");
+                    
+                    int cantidad = ParsearEntero(cantidadTexto, 0, $"La cantidad '{cantidadTexto}' no es un número entero válido.");
+                    if (cantidad < 0)
+                    {
+                        throw new Exception("La cantidad no puede ser un número negativo.");
+                    }
+
+                    decimal precio = ParsearDecimal(precioTexto, 0m, $"El precio '{precioTexto}' no es un número decimal válido.");
+                    if (precio < 0m)
+                    {
+                        throw new Exception("El precio no puede ser un número negativo.");
+                    }
+
+                    int? proveedorId = ParsearEnteroOpcional(proveedorTexto, $"El ID de proveedor '{proveedorTexto}' no es un número entero positivo válido.");
+                    char estado = ParsearEstado(estadoTexto);
+
+                    resultado.Add(new ProductoCargaFila
+                    {
+                        NumeroFilaArchivo = i + 1,
+                        ProductoId = productoId,
+                        NombreProducto = nombre,
+                        Cantidad = cantidad,
+                        Precio = precio,
+                        ProveedorId = proveedorId,
+                        EstadoProducto = estado
+                    });
+                }
+                catch (Exception ex)
                 {
-                    NumeroFilaArchivo = i + 1,
-                    ProductoId = ParsearEnteroOpcional(idTexto, $"La fila {i + 1} tiene un ID de producto invalido."),
-                    NombreProducto = nombre,
-                    Cantidad = ParsearEntero(cantidadTexto, 0, $"La fila {i + 1} tiene una cantidad invalida."),
-                    Precio = ParsearDecimal(precioTexto, 0m, $"La fila {i + 1} tiene un precio invalido."),
-                    ProveedorId = ParsearEnteroOpcional(proveedorTexto, $"La fila {i + 1} tiene un ID de proveedor invalido."),
-                    EstadoProducto = ParsearEstado(estadoTexto)
-                });
+                    throw new Exception($"Error en la fila {i + 1}: {ex.Message}");
+                }
             }
 
             if (!resultado.Any())

@@ -17,6 +17,7 @@ namespace Monolito4bm
         protected global::System.Web.UI.WebControls.FileUpload fuCargaMasiva;
         protected global::System.Web.UI.WebControls.LinkButton btnPrevisualizarCarga;
         protected global::System.Web.UI.WebControls.LinkButton btnLimpiarCarga;
+        protected global::System.Web.UI.WebControls.LinkButton btnDescargarFormato;
         protected global::System.Web.UI.WebControls.Literal litArchivoCarga;
         protected global::System.Web.UI.WebControls.Literal litResumenCarga;
         protected global::System.Web.UI.WebControls.DropDownList ddlTipoInsercionMasiva;
@@ -390,6 +391,35 @@ namespace Monolito4bm
         protected void btnLimpiarCarga_Click(object sender, EventArgs e)
         {
             LimpiarPreviewCarga();
+        }
+
+        protected void btnDescargarFormato_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string path = Server.MapPath("~/Plantillas/productos.xlsx");
+                if (System.IO.File.Exists(path))
+                {
+                    Response.Clear();
+                    Response.Buffer = true;
+                    Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                    Response.AddHeader("content-disposition", "attachment;filename=productos.xlsx");
+                    Response.WriteFile(path);
+                    Response.End();
+                }
+                else
+                {
+                    throw new Exception("El archivo de plantilla 'productos.xlsx' no existe en el servidor.");
+                }
+            }
+            catch (System.Threading.ThreadAbortException)
+            {
+                // Esperado en Response.End()
+            }
+            catch (Exception ex)
+            {
+                MostrarMensaje("Error al descargar el formato: " + ex.Message, false);
+            }
         }
         // ── Carrusel HTML ─────────────────────────────────────────────
         public string GenerarCarrusel(object proId, object fotosObj)
