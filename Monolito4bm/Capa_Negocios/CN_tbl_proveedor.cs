@@ -7,87 +7,79 @@ namespace Capa_Negocios
 {
     public class CN_tbl_proveedor
     {
+        private static MonolitoDataContext dc = new MonolitoDataContext();
         private const string TablaPendientes = "tbl_proveedor_reasignacion_pendiente";
 
         public static List<tbl_proveedor> Listar()
         {
-            using (var dc = new MonolitoDataContext())
-            {
-                return dc.GetTable<tbl_proveedor>()
-                    .OrderByDescending(p => p.prov_id)
-                    .ToList();
-            }
+            return dc.tbl_proveedor
+                .OrderByDescending(p => p.prov_id)
+                .ToList();
         }
 
         public static List<tbl_proveedor> Buscar(string nombre = null, char? estado = null)
         {
-            using (var dc = new MonolitoDataContext())
+            var query = dc.tbl_proveedor.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(nombre))
             {
-                var query = dc.GetTable<tbl_proveedor>().AsQueryable();
-
-                if (!string.IsNullOrWhiteSpace(nombre))
-                {
-                    string termino = nombre.Trim();
-                    query = query.Where(p => p.prov_nombre.Contains(termino));
-                }
-
-                if (estado.HasValue)
-                {
-                    query = query.Where(p => p.prov_estado == estado.Value);
-                }
-
-                return query
-                    .OrderByDescending(p => p.prov_id)
-                    .ToList();
+                string termino = nombre.Trim();
+                query = query.Where(p => p.prov_nombre.Contains(termino));
             }
+
+            if (estado.HasValue)
+            {
+                query = query.Where(p => p.prov_estado == estado.Value);
+            }
+
+            return query
+                .OrderByDescending(p => p.prov_id)
+                .ToList();
         }
 
         public static List<tbl_proveedor> ListarActivos()
         {
-            using (var dc = new MonolitoDataContext())
-            {
-                return dc.GetTable<tbl_proveedor>()
-                    .Where(p => p.prov_estado == 'A')
-                    .OrderBy(p => p.prov_nombre)
-                    .ToList();
-            }
+            return dc.tbl_proveedor
+                .Where(p => p.prov_estado == 'A')
+                .OrderBy(p => p.prov_nombre)
+                .ToList();
         }
 
         public static tbl_proveedor BuscarPorId(int id)
         {
-            using (var dc = new MonolitoDataContext())
-            {
-                return dc.GetTable<tbl_proveedor>()
-                    .FirstOrDefault(p => p.prov_id == id);
-            }
+            return dc.tbl_proveedor.FirstOrDefault(p => p.prov_id == id);
+        }
+
+        public static List<tbl_proveedor> traerproveedores()
+        {
+            return dc.tbl_proveedor.Where(p => p.prov_estado == 'A').ToList();
+        }
+
+        public static tbl_proveedor traerproveedorid(int id)
+        {
+            return dc.tbl_proveedor.FirstOrDefault(p => p.prov_id == id && p.prov_estado == 'A');
         }
 
         public static bool ExisteNombre(string nombre, int idIgnorar = 0)
         {
-            using (var dc = new MonolitoDataContext())
-            {
-                return dc.GetTable<tbl_proveedor>()
-                    .Any(p => p.prov_nombre == nombre
-                           && p.prov_estado == 'A'
-                           && p.prov_id != idIgnorar);
-            }
+            return dc.tbl_proveedor
+                .Any(p => p.prov_nombre == nombre
+                       && p.prov_estado == 'A'
+                       && p.prov_id != idIgnorar);
         }
 
         public static void Guardar(tbl_proveedor proveedor)
         {
             try
             {
-                using (var dc = new MonolitoDataContext())
-                {
-                    AsegurarTablaPendientes(dc);
+                AsegurarTablaPendientes(dc);
 
-                    proveedor.prov_nombre = (proveedor.prov_nombre ?? string.Empty).Trim();
-                    proveedor.prov_estado = 'A';
-                    dc.GetTable<tbl_proveedor>().InsertOnSubmit(proveedor);
-                    dc.SubmitChanges();
+                proveedor.prov_nombre = (proveedor.prov_nombre ?? string.Empty).Trim();
+                proveedor.prov_estado = 'A';
+                dc.tbl_proveedor.InsertOnSubmit(proveedor);
+                dc.SubmitChanges();
 
-                    ReasignarProductosPendientes(dc, proveedor.prov_id, proveedor.prov_nombre);
-                }
+                ReasignarProductosPendientes(dc, proveedor.prov_id, proveedor.prov_nombre);
             }
             catch (Exception ex)
             {
@@ -99,18 +91,15 @@ namespace Capa_Negocios
         {
             try
             {
-                using (var dc = new MonolitoDataContext())
-                {
-                    var existente = dc.GetTable<tbl_proveedor>()
-                        .FirstOrDefault(p => p.prov_id == proveedor.prov_id)
-                        ?? throw new Exception("Proveedor no encontrado.");
+                var existente = dc.tbl_proveedor
+                    .FirstOrDefault(p => p.prov_id == proveedor.prov_id)
+                    ?? throw new Exception("Proveedor no encontrado.");
 
-                    existente.prov_nombre = (proveedor.prov_nombre ?? string.Empty).Trim();
-                    dc.SubmitChanges();
+                existente.prov_nombre = (proveedor.prov_nombre ?? string.Empty).Trim();
+                dc.SubmitChanges();
 
-                    AsegurarTablaPendientes(dc);
-                    ReasignarProductosPendientes(dc, existente.prov_id, existente.prov_nombre);
-                }
+                AsegurarTablaPendientes(dc);
+                ReasignarProductosPendientes(dc, existente.prov_id, existente.prov_nombre);
             }
             catch (Exception ex)
             {
@@ -122,14 +111,11 @@ namespace Capa_Negocios
         {
             try
             {
-                using (var dc = new MonolitoDataContext())
-                {
-                    var prov = dc.GetTable<tbl_proveedor>()
-                        .FirstOrDefault(p => p.prov_id == id)
-                        ?? throw new Exception("Proveedor no encontrado.");
-                    prov.prov_estado = 'A';
-                    dc.SubmitChanges();
-                }
+                var prov = dc.tbl_proveedor
+                    .FirstOrDefault(p => p.prov_id == id)
+                    ?? throw new Exception("Proveedor no encontrado.");
+                prov.prov_estado = 'A';
+                dc.SubmitChanges();
             }
             catch (Exception ex)
             {
@@ -141,14 +127,11 @@ namespace Capa_Negocios
         {
             try
             {
-                using (var dc = new MonolitoDataContext())
-                {
-                    var prov = dc.GetTable<tbl_proveedor>()
-                        .FirstOrDefault(p => p.prov_id == id)
-                        ?? throw new Exception("Proveedor no encontrado.");
-                    prov.prov_estado = 'I';
-                    dc.SubmitChanges();
-                }
+                var prov = dc.tbl_proveedor
+                    .FirstOrDefault(p => p.prov_id == id)
+                    ?? throw new Exception("Proveedor no encontrado.");
+                prov.prov_estado = 'I';
+                dc.SubmitChanges();
             }
             catch (Exception ex)
             {
@@ -160,28 +143,25 @@ namespace Capa_Negocios
         {
             try
             {
-                using (var dc = new MonolitoDataContext())
+                AsegurarTablaPendientes(dc);
+
+                var prov = dc.tbl_proveedor
+                    .FirstOrDefault(p => p.prov_id == id)
+                    ?? throw new Exception("Proveedor no encontrado.");
+
+                string nombreProveedor = (prov.prov_nombre ?? string.Empty).Trim();
+                var productosAfectados = dc.tbl_producto
+                    .Where(p => p.prov_id == id)
+                    .ToList();
+
+                foreach (var producto in productosAfectados)
                 {
-                    AsegurarTablaPendientes(dc);
-
-                    var prov = dc.GetTable<tbl_proveedor>()
-                        .FirstOrDefault(p => p.prov_id == id)
-                        ?? throw new Exception("Proveedor no encontrado.");
-
-                    string nombreProveedor = (prov.prov_nombre ?? string.Empty).Trim();
-                    var productosAfectados = dc.GetTable<tbl_producto>()
-                        .Where(p => p.prov_id == id)
-                        .ToList();
-
-                    foreach (var producto in productosAfectados)
-                    {
-                        RegistrarPendiente(dc, producto.pro_id, nombreProveedor);
-                        producto.prov_id = null;
-                    }
-
-                    dc.GetTable<tbl_proveedor>().DeleteOnSubmit(prov);
-                    dc.SubmitChanges();
+                    RegistrarPendiente(dc, producto.pro_id, nombreProveedor);
+                    producto.prov_id = null;
                 }
+
+                dc.tbl_proveedor.DeleteOnSubmit(prov);
+                dc.SubmitChanges();
             }
             catch (Exception ex)
             {
@@ -208,7 +188,6 @@ namespace Capa_Negocios
                 {
                     IsolationLevel = System.Transactions.IsolationLevel.ReadCommitted
                 }))
-            using (var dc = new MonolitoDataContext())
             {
                 AsegurarTablaPendientes(dc);
 
@@ -265,7 +244,7 @@ WHERE LTRIM(RTRIM(proveedor_nombre)) = {{0}}", proveedorNombre).ToList();
 
             if (!productosPendientes.Any()) return;
 
-            var productos = dc.GetTable<tbl_producto>()
+            var productos = dc.tbl_producto
                 .Where(p => productosPendientes.Contains(p.pro_id) && !p.prov_id.HasValue)
                 .ToList();
 
@@ -329,7 +308,7 @@ WHERE LTRIM(RTRIM(proveedor_nombre)) = {{0}}", proveedorNombre);
 
         private static void EjecutarCargaIncremental(MonolitoDataContext dc, List<ProveedorCargaFilaNormalizada> filas, ResultadoCargaProveedores resultado)
         {
-            var proveedoresActuales = dc.GetTable<tbl_proveedor>().ToList();
+            var proveedoresActuales = dc.tbl_proveedor.ToList();
             var porId = proveedoresActuales.ToDictionary(p => p.prov_id);
             var porNombre = proveedoresActuales
                 .GroupBy(p => NormalizarNombreProveedor(p.prov_nombre))
@@ -410,7 +389,7 @@ WHERE LTRIM(RTRIM(proveedor_nombre)) = {{0}}", proveedorNombre);
                     prov_estado = f.EstadoProveedor
                 }).ToList();
 
-                dc.GetTable<tbl_proveedor>().InsertAllOnSubmit(nuevos);
+                dc.tbl_proveedor.InsertAllOnSubmit(nuevos);
                 dc.SubmitChanges();
                 resultado.Insertados += nuevos.Count;
             }
@@ -418,7 +397,7 @@ WHERE LTRIM(RTRIM(proveedor_nombre)) = {{0}}", proveedorNombre);
 
         private static void EjecutarReemplazoTotal(MonolitoDataContext dc, List<ProveedorCargaFilaNormalizada> filas, ResultadoCargaProveedores resultado)
         {
-            var asignacionesPrevias = dc.GetTable<tbl_producto>()
+            var asignacionesPrevias = dc.tbl_producto
                 .Where(p => p.prov_id.HasValue)
                 .Select(p => new
                 {
@@ -427,7 +406,7 @@ WHERE LTRIM(RTRIM(proveedor_nombre)) = {{0}}", proveedorNombre);
                 })
                 .ToList();
 
-            var productosConProveedor = dc.GetTable<tbl_producto>()
+            var productosConProveedor = dc.tbl_producto
                 .Where(p => p.prov_id.HasValue)
                 .ToList();
 
@@ -440,10 +419,10 @@ WHERE LTRIM(RTRIM(proveedor_nombre)) = {{0}}", proveedorNombre);
 
             dc.ExecuteCommand($"DELETE FROM dbo.{TablaPendientes}");
 
-            var proveedores = dc.GetTable<tbl_proveedor>().ToList();
+            var proveedores = dc.tbl_proveedor.ToList();
             if (proveedores.Any())
             {
-                dc.GetTable<tbl_proveedor>().DeleteAllOnSubmit(proveedores);
+                dc.tbl_proveedor.DeleteAllOnSubmit(proveedores);
                 dc.SubmitChanges();
             }
 
@@ -459,7 +438,7 @@ WHERE LTRIM(RTRIM(proveedor_nombre)) = {{0}}", proveedorNombre);
                 .Select(a => a.pro_id)
                 .ToList();
 
-            var productosAReasignar = dc.GetTable<tbl_producto>()
+            var productosAReasignar = dc.tbl_producto
                 .Where(p => !p.prov_id.HasValue && productoIdsReasignables.Contains(p.pro_id))
                 .ToList();
 
@@ -528,7 +507,7 @@ WHERE LTRIM(RTRIM(proveedor_nombre)) = {{0}}", proveedorNombre);
                     prov_estado = fila.EstadoProveedor
                 };
 
-                dc.GetTable<tbl_proveedor>().InsertOnSubmit(proveedor);
+                dc.tbl_proveedor.InsertOnSubmit(proveedor);
                 dc.SubmitChanges();
                 idsGenerados.Add(proveedor.prov_id);
             }

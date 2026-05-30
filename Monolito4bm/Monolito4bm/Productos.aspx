@@ -520,19 +520,18 @@
   </div>
 
   <!-- ══ Grid + Paginador ══════════════════════════════════════ -->
-  <div class="card">
-    <div class="card-title">
-      <i class="fa-solid fa-table-list"></i> Lista de Productos
-      <span style="margin-left:auto;font-size:.78rem;color:#aaa;font-weight:400;">
-        <asp:Literal ID="litTotal" runat="server"/> &mdash; ordenado por mas reciente
-      </span>
-    </div>
-
+  <asp:UpdatePanel ID="upGridProductos" runat="server" UpdateMode="Conditional">
+      <ContentTemplate>
     <asp:HiddenField ID="hfPagina"    runat="server" Value="1"/>
     <asp:HiddenField ID="hfTotalPags" runat="server" Value="1"/>
-    <asp:UpdatePanel ID="upGridProductos" runat="server" UpdateMode="Conditional">
-        <ContentTemplate>
-    <div class="grid-wrapper">
+    <div class="card">
+      <div class="card-title">
+        <i class="fa-solid fa-table-list"></i> Lista de Productos
+        <span style="margin-left:auto;font-size:.78rem;color:#aaa;font-weight:400;">
+          <asp:Literal ID="litTotal" runat="server"/> &mdash; ordenado por mas reciente
+        </span>
+      </div>
+      <div class="grid-wrapper">
       <asp:GridView ID="gvProductos" runat="server"
                     AutoGenerateColumns="false" CssClass="prod-grid"
                     DataKeyNames="pro_id" GridLines="None"
@@ -779,7 +778,7 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="cerrarModal(); return false;">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModal(); return false;">
           <i class="fa-solid fa-xmark"></i> Cancelar
         </button>
         <asp:LinkButton ID="btnGuardarProd" runat="server"

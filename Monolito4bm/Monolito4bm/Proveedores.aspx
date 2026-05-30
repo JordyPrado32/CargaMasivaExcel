@@ -616,7 +616,7 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="cerrarModal(); return false;">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModal(); return false;">
           <i class="fa-solid fa-xmark"></i> Cancelar
         </button>
         <asp:LinkButton ID="btnGuardar" runat="server"

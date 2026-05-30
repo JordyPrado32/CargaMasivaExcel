@@ -19,7 +19,7 @@ namespace Capa_Negocios
         private static int SmtpPuerto => AppSettingsSecrets.GetRequiredInt("Smtp", "Port");
         private static string SmtpUsuario => AppSettingsSecrets.GetRequiredString("Smtp", "Username");
         private static string SmtpPassword => AppSettingsSecrets.GetRequiredString("Smtp", "Password");
-        private const string RemitenteNombre = "Sistema Star Dash";
+        private const string RemitenteNombre = "Carga Excel";
 
         private static string TwilioAccountSid => AppSettingsSecrets.GetRequiredString("Twilio", "AccountSid");
         private static string TwilioAuthToken => AppSettingsSecrets.GetRequiredString("Twilio", "AuthToken");
@@ -154,7 +154,7 @@ namespace Capa_Negocios
             string cuerpo = $"<html><body><h2>Verificación</h2><img src='{urlQr}'/><br><h1>{otp}</h1></body></html>";
             using (var smtp = new SmtpClient(SmtpHost, SmtpPuerto) { Credentials = new NetworkCredential(SmtpUsuario, SmtpPassword), EnableSsl = true })
             {
-                smtp.Send(new MailMessage(SmtpUsuario, destinatario, "Acceso Star Dash", cuerpo) { IsBodyHtml = true });
+                smtp.Send(new MailMessage(SmtpUsuario, destinatario, "Carga Excel", cuerpo) { IsBodyHtml = true });
             }
         }
 
